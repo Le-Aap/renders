@@ -1,8 +1,11 @@
-use std::fs;
-use std::io::{
-    prelude::*,
-    BufWriter
+use std::{
+    fs,
+    io::{
+        prelude::*,
+        BufWriter
+    }
 };
+
 fn main() {
     let image_width = 256;
     let image_height = 256;
@@ -15,6 +18,7 @@ fn main() {
     ).expect("Error while writing to file-buffer");
 
     for i in 0..image_width {
+        print!("\rScanlines remaining: {}        ", image_height - i);
         for j in 0..image_height {
             let r:f64 = f64::from(j) / f64::from(image_width - 1);
             let g:f64 = f64::from(i) / f64::from(image_height - 1);
@@ -35,4 +39,5 @@ fn main() {
     }
 
     file.flush().expect("Error while executing file-writes");
+    println!("\rDone.                           ");
 }
