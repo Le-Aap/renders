@@ -1,0 +1,207 @@
+
+mod vec_math {
+    use std::ops;
+    
+    #[derive(PartialEq, Debug, Clone, Copy)]
+    pub struct Vec3 {
+        pub x:f64,
+        pub y:f64,
+        pub z:f64,
+    }
+    
+    impl Vec3 {
+        #[must_use]
+        pub const fn new(x:f64, y:f64, z:f64) -> Self {
+            Self{x, y, z}
+        }
+    
+        #[must_use]
+        pub fn length(&self) -> f64 {
+            self.square_length().sqrt()
+        }
+    
+        #[must_use]
+        pub fn square_length(&self) -> f64 {
+            self.z.mul_add(
+                self.z,
+                self.x.mul_add(
+                self.x,
+                self.y * self.y
+                )
+            )
+        } 
+    
+        #[must_use]
+        pub fn normalized(&self) -> Self {
+            *self / self.length()
+        }
+    }
+    
+    impl ops::Sub for Vec3 {
+        type Output = Self;
+        
+        fn sub(self, rhs: Self) -> Self::Output {
+            Self {
+                x: self.x - rhs.x,
+                y: self.y - rhs.y,
+                z: self.z - rhs.z,
+            }
+        }
+    }
+    
+    impl ops::SubAssign for Vec3 {
+        fn sub_assign(&mut self, rhs: Self) {
+            self.x -= rhs.x;
+            self.y -= rhs.y;
+            self.z -= rhs.z;
+        }
+    }
+    
+    impl ops::Add for Vec3 {
+        type Output = Self;
+    
+        fn add(self, rhs: Self) -> Self::Output {
+            Self {
+                x: self.x + rhs.x,
+                y: self.y + rhs.y,
+                z: self.z + rhs.z,
+            }
+        }
+    }
+    
+    impl ops::AddAssign for Vec3 {
+        fn add_assign(&mut self, rhs: Self) {
+            self.x += rhs.x;
+            self.y += rhs.y;
+            self.z += rhs.z;
+        }
+    }
+    
+    impl ops::Mul<f64> for Vec3 {
+        type Output = Self;
+    
+        fn mul(self, rhs: f64) -> Self::Output {
+            Self {
+                x: self.x * rhs,
+                y: self.y * rhs,
+                z: self.z * rhs,
+            }
+        }
+    }
+    
+    impl ops::Mul<Vec3> for f64 {
+        type Output = Vec3;
+    
+        fn mul(self, rhs: Vec3) -> Self::Output {
+            rhs * self
+        }
+    }
+    
+    impl ops::Div<f64> for Vec3 {
+        type Output = Self;
+    
+        fn div(self, rhs: f64) -> Self::Output {
+            Self {
+                x: self.x / rhs,
+                y: self.y / rhs,
+                z: self.z / rhs,
+            }
+        }
+    }
+    
+    #[must_use]
+    pub fn unit_vector(v:&Vec3) -> Vec3 {
+        v.normalized()
+    }
+    
+    #[must_use]
+    pub fn dot(a: &Vec3, b: &Vec3) -> f64 {
+        a.x.mul_add(b.x,
+        a.y.mul_add(b.y, 
+        a.z * b.z
+        ))
+    }
+    
+    #[must_use]
+    pub fn cross(a: &Vec3, b: &Vec3) -> Vec3 {
+        Vec3 {
+            x: a.y.mul_add(b.z, -(a.z * b.y)),
+            y: a.z.mul_add(b.x, -(a.x * b.z)),
+            z: a.x.mul_add(b.y, -(a.y * b.x)),
+        }
+    }
+    
+    #[cfg(test)]
+    #[allow(clippy::float_cmp)]
+    mod tests {
+        use super::*;
+    
+        #[test]
+        fn basic_creation() {
+            let position = Vec3::new(1.0, 2.0, 3.0);
+            assert_eq!(position, Vec3{x:1.0, y:2.0, z:3.0});
+        }
+    
+        #[test]
+        fn equals_opperator() {
+            let position = Vec3::new(1.0, 2.0, 3.0);
+            assert!(position != Vec3::new(1.0, 1.0, 3.0));
+            assert!(position != Vec3::new(2.0, 2.0, 3.0));
+            assert!(position != Vec3::new(1.0, 2.0, 2.0));
+        }
+    
+        #[test]
+        fn simple_opperations() {
+            let mut position = Vec3::new(1.0, 2.0, 3.0);
+            let position2 = Vec3::new(3.0, 2.0, 1.0);
+        
+            assert_eq!(position-position2, Vec3::new(-2.0, 0.0, 2.0));
+            assert_eq!(position+position2, Vec3::new(4.0, 4.0, 4.0));
+            assert_eq!(position * 2.0, Vec3::new(2.0, 4.0, 6.0));
+            assert_eq!(position * 2.0, 2.0 * position);
+            assert_eq!(position / 2.0, Vec3::new(0.5, 1.0, 1.5));
+            
+            position-=position2;
+            assert_eq!(position, Vec3::new(-2.0, 0.0, 2.0));
+        
+            position+=position2;
+            assert_eq!(position, Vec3::new(1.0, 2.0, 3.0));
+        }
+    
+        #[test]
+        fn lengths() {
+            let position = Vec3::new(2.0, 3.0, -1.0);
+            let expected_squared = 14.0;
+        
+            assert_eq!(position.square_length(), expected_squared);
+            assert_eq!(position.length(), expected_squared.sqrt());
+        }
+    
+        #[test]
+        fn normalization_test() {
+            let a = Vec3::new(2.0, 3.0, -1.0);
+        
+            assert_eq!(a.normalized(), unit_vector(&a));
+            assert_eq!(a.normalized(), a/a.length());
+        }
+    
+        #[test]
+        fn dot_test() {
+            let a = Vec3::new(1.0, 0.0, 0.0);
+            let b = Vec3::new(0.0, 1.0, 0.0);
+            let c = Vec3::new(-1.0, 0.0, 0.0);
+        
+            assert_eq!(dot(&a, &b), 0.0);
+            assert_eq!(dot(&a, &c), -1.0);
+            assert_eq!(dot(&a, &a), 1.0);
+        }
+    
+        #[test]
+        fn cross_test() {
+            let a = Vec3::new(2.0, 3.0, 4.0);
+            let b = Vec3::new(5.0, 6.0, 7.0);
+        
+            assert_eq!(cross(&a, &b), Vec3::new(-3.0, 6.0, -3.0));
+        }
+    }
+}

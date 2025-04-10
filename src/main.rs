@@ -5,6 +5,7 @@ use std::{
         BufWriter
     }
 };
+// use::renders;
 
 fn main() {
     let image_width = 256;
