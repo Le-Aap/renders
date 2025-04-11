@@ -7,9 +7,10 @@ edition = "2024"
 unsafe_code = "forbid"
 
 [lints.clippy]
+suboptimal-flops = "allow"
 enum_glob_use = "deny"
-pedantic = "deny"
-nursery = "deny"
+pedantic = { level = "deny",  priority = -1 }
+nursery = { level = "deny",  priority = -1 }
 unwrap_used = "deny"
 
 [dependencies]
