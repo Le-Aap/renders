@@ -7,20 +7,31 @@ use std::{
 use renders::{colors::Color, ray_math::Ray, vec_math::{dot, Vec3}};
 
 fn ray_color(ray: &Ray) -> Color {
-    if hit_sphere(&Vec3::new(0.0, 0.0, -1.0), 0.5, ray) {
-        return Color::new(1.0, 0.0, 0.0);
+    let center = Vec3::new(0.0, 0.0, -1.0);
+    let radius = 0.5;
+
+    if let Some(t) = sphere_intersection(&center, radius, ray) {
+        let normal = (ray.at(t) - center).normalized();
+        return (0.5 * Vec3::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)).try_into().expect("Color out of RGB range!")
     }
+       
     let a = 0.5 * (ray.direction().y() + 1.0);
     ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).try_into().expect("Color out of RGB range!")
 }
 
-fn hit_sphere(center: &Vec3, radius: f64, ray: &Ray) -> bool{
+#[allow(clippy::suspicious_operation_groupings)]
+fn sphere_intersection(center: &Vec3, radius: f64, ray: &Ray) -> Option<f64>{
     let oc = *center - *ray.origin();
-    let a = dot(ray.direction(), ray.direction());
-    let b = -2.0 * dot(ray.direction(), &oc);
-    let c = dot(&oc, &oc) - radius * radius;
-    let discriminant = b * b - 4.0 * a * c;
-    discriminant >= 0.0
+    let a = ray.direction().square_length();
+    let h = dot(ray.direction(), &oc);
+    let c = oc.square_length() - radius * radius;
+    let discriminant = h*h - a*c;
+
+    if discriminant < 0.0 {
+        return None;
+    }
+
+    Some((h - discriminant.sqrt()) / a)
 }
 
 fn main() {
