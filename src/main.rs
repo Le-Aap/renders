@@ -5,8 +5,7 @@ use std::{
         BufWriter
     }
 };
-use renders::vec_math::Vec3;
-use renders::vec_math;
+use renders::{colors::Color, vec_math::Vec3};
 
 fn main() {
     let image_width = 256;
@@ -24,7 +23,7 @@ fn main() {
         for j in 0..image_height {
             let x_fade = f64::from(j) / f64::from(image_width - 1);
             
-            let color = Vec3::new(
+            let color = Color::new(
                 x_fade,
                 x_fade,
                 x_fade
@@ -32,7 +31,7 @@ fn main() {
 
             file.write_all(
                 color
-                    .format_as_color()
+                    .to_string()
                     .as_bytes()
             ).expect("Error while writing to file-buffer");
         }
