@@ -1,5 +1,5 @@
 
-mod vec_math {
+pub mod vec_math {
     use std::ops;
     
     #[derive(PartialEq, Debug, Clone, Copy)]
@@ -8,7 +8,7 @@ mod vec_math {
         pub y:f64,
         pub z:f64,
     }
-    
+
     impl Vec3 {
         #[must_use]
         pub const fn new(x:f64, y:f64, z:f64) -> Self {
@@ -34,6 +34,20 @@ mod vec_math {
         #[must_use]
         pub fn normalized(&self) -> Self {
             *self / self.length()
+        }
+
+        #[must_use]
+        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_sign_loss)]
+        pub fn format_as_color(&self) -> String {
+            let r = self.x * 255.999;
+            let g = self.y * 255.999;
+            let b = self.z * 255.999;
+
+            let r = r.floor() as u8;
+            let g = g.floor() as u8;
+            let b = b.floor() as u8;
+            format!("{r} {g} {b}\n")
         }
     }
     

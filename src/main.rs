@@ -5,7 +5,8 @@ use std::{
         BufWriter
     }
 };
-// use::renders;
+use renders::vec_math::Vec3;
+use renders::vec_math;
 
 fn main() {
     let image_width = 256;
@@ -21,19 +22,17 @@ fn main() {
     for i in 0..image_width {
         print!("\rScanlines remaining: {}        ", image_height - i);
         for j in 0..image_height {
-            let r:f64 = f64::from(j) / f64::from(image_width - 1);
-            let g:f64 = f64::from(i) / f64::from(image_height - 1);
-            let b:f64 = 0.0;
-
-            #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-            let r:u8 = (255.999 * r).floor() as u8;
-            #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-            let g:u8 = (255.999 * g).floor() as u8;
-            #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-            let b:u8 = (255.999 * b).floor() as u8;
+            let x_fade = f64::from(j) / f64::from(image_width - 1);
+            
+            let color = Vec3::new(
+                x_fade,
+                x_fade,
+                x_fade
+            );
 
             file.write_all(
-                format!("{r} {g} {b}\n")
+                color
+                    .format_as_color()
                     .as_bytes()
             ).expect("Error while writing to file-buffer");
         }
