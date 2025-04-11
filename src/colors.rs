@@ -1,7 +1,7 @@
 use std::{fmt::{Debug, Display}, ops::{Add, Div, Mul, Sub}};
 use super::vec_math::Vec3;
 
-/// Used to store an RGB value where R, G and B are in range [0, 1].
+/// Used to store an RGB value where R, G and B are in range \[0, 1\].
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Color {
     vector: Vec3,
@@ -14,14 +14,14 @@ pub enum ColorError {
 }
 
 impl Color {
-    /// Creates a new Color with values RGB in the range [0,1].
+    /// Creates a new Color with values RGB in the range \[0,1\].
     /// # Example:
     /// ```
     /// use renders::colors::Color;
     /// let _ = Color::new(0.0, 0.5, 1.0);
     /// ```
     /// # Panics
-    /// Panics if r, g or b are outside of the range [0,1].
+    /// Panics if r, g or b are outside of the range \[0,1\].
     #[must_use]
     pub fn new(r:f64, g:f64, b:f64) -> Self {
         assert!(r < 1.0 || r > 0.0, "RGB value should be in range [0,1]");

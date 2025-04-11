@@ -1,5 +1,6 @@
 use std::ops;
 
+/// Struct for representing 3d Math vectors.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Vec3 {
     pub x:f64,
@@ -13,11 +14,25 @@ impl Vec3 {
         Self{x, y, z}
     }
 
+    /// Returns the length of the vector
+    /// # Example
+    /// ```
+    /// use renders::vec_math::Vec3;
+    /// let example = Vec3::new(3.0, 4.0, 0.0);
+    /// assert_eq!(example.length(), 5.0);
+    /// ```
     #[must_use]
     pub fn length(&self) -> f64 {
         self.square_length().sqrt()
     }
 
+    /// Returns the length of the vector squared. This is more performant than the regular length because it avoids an expensive square root.
+    /// # Example
+    /// ```
+    /// use renders::vec_math::Vec3;
+    /// let example = Vec3::new(3.0, 4.0, 0.0);
+    /// assert_eq!(example.square_length(), 25.0);
+    /// ```
     #[must_use]
     pub fn square_length(&self) -> f64 {
         self.z.mul_add(
@@ -29,6 +44,14 @@ impl Vec3 {
         )
     } 
 
+    /// Returns an unit-vector with the same direction.
+    /// # Example
+    /// ```
+    /// use renders::vec_math::*;
+    /// let example = Vec3::new(5.0, 4.0, 3.0);
+    /// let normalized = example.normalized();
+    /// assert_eq!(normalized.length(), 1.0);
+    /// ```
     #[must_use]
     pub fn normalized(&self) -> Self {
         *self / self.length()
@@ -107,11 +130,13 @@ impl ops::Div<f64> for Vec3 {
     }
 }
 
+/// Returns a unit vector with same direction as v. Identical to v.normalized().
 #[must_use]
 pub fn unit_vector(v:&Vec3) -> Vec3 {
     v.normalized()
 }
 
+/// Returns the dot product of a and b.
 #[must_use]
 pub fn dot(a: &Vec3, b: &Vec3) -> f64 {
     a.x.mul_add(b.x,
@@ -120,6 +145,7 @@ pub fn dot(a: &Vec3, b: &Vec3) -> f64 {
     ))
 }
 
+/// Returns the cross product of a and b.
 #[must_use]
 pub fn cross(a: &Vec3, b: &Vec3) -> Vec3 {
     Vec3 {
