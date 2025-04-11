@@ -5,7 +5,7 @@ use std::{
         BufWriter
     }
 };
-use renders::{colors::Color, vec_math::Vec3};
+use renders::colors::Color;
 
 fn main() {
     let image_width = 256;

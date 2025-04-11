@@ -132,8 +132,6 @@ pub fn cross(a: &Vec3, b: &Vec3) -> Vec3 {
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
 
     #[test]
