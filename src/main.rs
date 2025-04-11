@@ -4,45 +4,7 @@ use std::{
         BufWriter
     }
 };
-use renders::{colors::Color, ray_math::Ray, vec_math::{dot, Vec3}};
-
-fn ray_color(ray: &Ray) -> Color {
-    let center = Vec3::new(0.0, 0.0, -1.0);
-    let radius = 0.5;
-
-    if let Some(t) = sphere_intersection(&center, radius, ray) {
-        let normal = (ray.at(t) - center).normalized();
-        return (0.5 * Vec3::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)).try_into().expect("Color out of RGB range!")
-    }
-       
-    let a = 0.5 * (ray.direction().normalized().y() + 1.0);
-    ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).try_into().expect("Color out of RGB range!")
-}
-
-#[allow(clippy::suspicious_operation_groupings)]
-fn sphere_intersection(center: &Vec3, radius: f64, ray: &Ray) -> Option<f64>{
-    let oc = *center - *ray.origin();
-    let a = ray.direction().square_length();
-    let h = dot(ray.direction(), &oc);
-    let c = oc.square_length() - radius * radius;
-    let discriminant = h*h - a*c;
-
-    if discriminant < 0.0 {
-        return None;
-    }
-
-    Some((h - discriminant.sqrt()) / a)
-}
-
-struct HitRecord {
-    pub point: Vec3,
-    pub normal: Vec3,
-    pub t: Vec3,
-}
-
-trait Hittable {
-    fn hit(ray: &Ray, tmin: f64, tmax: f64) -> Option<HitRecord>;
-}
+use renders::{ray_math::Ray, vec_math::Vec3};
 
 fn main() {
     let image_width = 400;
@@ -82,7 +44,7 @@ fn main() {
 
             let camera_ray = Ray::new(camera_center, ray_direction);
 
-            let color = ray_color(&camera_ray);
+            let color = renders::ray_color(&camera_ray);
 
             file.write_all(
                 color
