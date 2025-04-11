@@ -1,11 +1,13 @@
-use std::{fmt::Debug, ops::{Add, Div, Mul, Sub}};
+use std::{fmt::{Debug, Display}, ops::{Add, Div, Mul, Sub}};
 use super::vec_math::Vec3;
 
+/// Used to store an RGB value where R, G and B are in range [0, 1].
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Color {
     vector: Vec3,
 }
 
+/// Error type for Color struct.
 #[derive(Debug)]
 pub enum ColorError {
     RGBValOutOfRange(),
@@ -18,26 +20,23 @@ impl Color {
     /// use renders::colors::Color;
     /// let _ = Color::new(0.0, 0.5, 1.0);
     /// ```
+    /// # Panics
+    /// Panics if r, g or b are outside of the range [0,1].
+    #[must_use]
     pub fn new(r:f64, g:f64, b:f64) -> Self {
-        if r > 1.0 || r < 0.0 {
-            panic!("RGB value should be in range [0,1]")
-        }
-        if g > 1.0 || g < 0.0 {
-            panic!("RGB value should be in range [0,1]")
-        }
-        if b > 1.0 || b < 0.0 {
-            panic!("RGB value should be in range [0,1]")
-        }
+        assert!(r < 1.0 || r > 0.0, "RGB value should be in range [0,1]");
+        assert!(g < 1.0 || g > 0.0, "RGB value should be in range [0,1]");
+        assert!(b < 1.0 || b > 0.0, "RGB value should be in range [0,1]");
 
         let vector = Vec3::new(r, g, b);
-
         Self{vector}
     }
+}
 
-    #[must_use]
+impl Display for Color {
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
-    pub fn to_string(&self) -> String {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let r = self.vector.x * 255.999;
         let g = self.vector.y * 255.999;
         let b = self.vector.z * 255.999;
@@ -45,7 +44,8 @@ impl Color {
         let r = r.floor() as u8;
         let g = g.floor() as u8;
         let b = b.floor() as u8;
-        format!("{r} {g} {b}\n")
+
+        writeln!(f, "{r} {g} {b}")
     }
 }
 
