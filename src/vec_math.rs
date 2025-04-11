@@ -130,7 +130,7 @@ impl ops::Div<f64> for Vec3 {
     }
 }
 
-/// Returns a unit vector with same direction as v. Identical to v.normalized().
+/// Returns a unit vector with same direction as v. Identical to `v.normalized()`.
 #[must_use]
 pub fn unit_vector(v:&Vec3) -> Vec3 {
     v.normalized()
