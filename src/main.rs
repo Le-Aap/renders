@@ -15,7 +15,7 @@ fn ray_color(ray: &Ray) -> Color {
         return (0.5 * Vec3::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)).try_into().expect("Color out of RGB range!")
     }
        
-    let a = 0.5 * (ray.direction().y() + 1.0);
+    let a = 0.5 * (ray.direction().normalized().y() + 1.0);
     ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).try_into().expect("Color out of RGB range!")
 }
 
@@ -32,6 +32,16 @@ fn sphere_intersection(center: &Vec3, radius: f64, ray: &Ray) -> Option<f64>{
     }
 
     Some((h - discriminant.sqrt()) / a)
+}
+
+struct HitRecord {
+    pub point: Vec3,
+    pub normal: Vec3,
+    pub t: Vec3,
+}
+
+trait Hittable {
+    fn hit(ray: &Ray, tmin: f64, tmax: f64) -> Option<HitRecord>;
 }
 
 fn main() {

@@ -8,10 +8,10 @@ use crate::vec_math::Vec3;
 /// let direction = Vec3::new(0.0, -2.0, 0.0);
 /// 
 /// let ray = Ray::new(origin, direction);
-/// assert_ne!(*ray.direction(), direction);
-/// assert_eq!(*ray.direction(), Vec3::new(0.0, -1.0, 0.0)); // Ray direction is always of unit length.
+/// assert_eq!(*ray.direction(), direction);
+/// assert_eq!(*ray.origin(), origin);
 /// 
-/// assert_eq!(ray.at(1.0), Vec3::new(0.0, 0.0, 0.0));
+/// assert_eq!(ray.at(1.0), Vec3::new(0.0, -1.0, 0.0));
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct Ray {
@@ -22,10 +22,10 @@ pub struct Ray {
 impl Ray {
     /// Creates a new ray with origin `origin` and direction `direction.normalized()`.
     #[must_use]
-    pub fn new(origin: Vec3, direction: Vec3) -> Self {
+    pub const fn new(origin: Vec3, direction: Vec3) -> Self {
         Self {
             origin,
-            direction: direction.normalized(),
+            direction,
         }
     }
 
@@ -67,8 +67,8 @@ mod tests {
 
         let ray = Ray::new(origin, direction);
         let point = ray.at(-2.0);
-        assert_eq!(point, Vec3::new(-2.0, 0.0, 0.0));
+        assert_eq!(point, Vec3::new(-4.0, 0.0, 0.0));
         assert_eq!(origin, *ray.origin());
-        assert_eq!(direction.normalized(), *ray.direction());
+        assert_eq!(direction, *ray.direction());
     }
 }
