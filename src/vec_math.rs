@@ -3,9 +3,9 @@ use std::ops;
 /// Struct for representing 3d Math vectors.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Vec3 {
-    pub x:f64,
-    pub y:f64,
-    pub z:f64,
+    x:f64,
+    y:f64,
+    z:f64,
 }
 
 impl Vec3 {
@@ -55,6 +55,21 @@ impl Vec3 {
     #[must_use]
     pub fn normalized(&self) -> Self {
         *self / self.length()
+    }
+
+    #[must_use]
+    pub const fn x(&self) -> f64 {
+        self.x
+    }
+
+    #[must_use]
+    pub const fn y(&self) -> f64 {
+        self.y
+    }
+
+    #[must_use]
+    pub const fn z(&self) -> f64 {
+        self.z
     }
 }
 

@@ -61,7 +61,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ray_creation() {
+    fn basic_ray_functionality() {
         let origin = Vec3::new(0.0, 0.0, 0.0);
         let direction = Vec3::new(2.0, 0.0, 0.0);
 

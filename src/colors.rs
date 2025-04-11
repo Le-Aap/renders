@@ -37,9 +37,9 @@ impl Display for Color {
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let r = self.vector.x * 255.999;
-        let g = self.vector.y * 255.999;
-        let b = self.vector.z * 255.999;
+        let r = self.vector.x() * 255.999;
+        let g = self.vector.y() * 255.999;
+        let b = self.vector.z() * 255.999;
 
         let r = r.floor() as u8;
         let g = g.floor() as u8;
@@ -92,13 +92,13 @@ impl Sub for Color {
 impl TryFrom<Vec3> for Color {
     type Error = ColorError;
     fn try_from(vector: Vec3) -> Result<Self, ColorError> {
-        if vector.x > 1.0 || vector.x < 0.0 {
+        if vector.x() > 1.0 || vector.x() < 0.0 {
             return Err(ColorError::RGBValOutOfRange());
         }
-        if vector.y > 1.0 || vector.y < 0.0 {
+        if vector.y() > 1.0 || vector.y() < 0.0 {
             return Err(ColorError::RGBValOutOfRange());
         }
-        if vector.z > 1.0 || vector.z < 0.0 {
+        if vector.z() > 1.0 || vector.z() < 0.0 {
             return Err(ColorError::RGBValOutOfRange());
         }
         Ok(Self{vector})
