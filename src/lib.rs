@@ -33,10 +33,10 @@ pub fn sphere_intersection(center: &Vec3, radius: f64, ray: &Ray) -> Option<f64>
     let discriminant = h*h - a*c;
 
     if discriminant < 0.0 {
-        return None;
+        None
+    } else {
+        Some((h - discriminant.sqrt()) / a)
     }
-
-    Some((h - discriminant.sqrt()) / a)
 }
 
 pub struct HitRecord {
