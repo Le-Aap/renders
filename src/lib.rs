@@ -1,27 +1,26 @@
 use colors::Color;
 use ray_math::Ray;
 use vec_math::{dot, Vec3};
-use std::{fmt::Debug, vec::Vec};
+use core::f64;
+use std::{vec::Vec};
 
 pub mod vec_math;
 pub mod colors;
 pub mod ray_math;
 
 /// Calculates the color at the end of a ray.
-/// # Panics
-/// Panics if otherwise an invalid color would have been output.
+/// If a bad color value is produced, black is returned instead.
 #[must_use]
-pub fn ray_color(ray: &Ray) -> Color {
-    let center = Vec3::new(0.0, 0.0, -1.0);
-    let radius = 0.5;
-
-    if let Some(t) = sphere_intersection(&center, radius, ray) {
-        let normal = (ray.at(t) - center).normalized();
-        return (0.5 * Vec3::new(normal.x() + 1.0, normal.y() + 1.0, normal.z() + 1.0)).try_into().expect("Color out of RGB range!")
+pub fn ray_color<T: Hittable>(ray: &Ray, world: &T) -> Color {
+    match world.hit(ray, 0.0, f64::INFINITY) {
+        Some(hit) => {
+            ((hit.normal + Vec3::new(1.0, 1.0, 1.0)) * 0.5).try_into().unwrap_or_else(|_|{Color::new(0.0, 0.0, 0.0)})
+        },
+        None => {
+            let a = 0.5 * (ray.direction().normalized().y() + 1.0);
+            ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).try_into().unwrap_or_else(|_|{Color::new(0.0, 0.0, 0.0)})
+        },
     }
-       
-    let a = 0.5 * (ray.direction().normalized().y() + 1.0);
-    ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).try_into().expect("Color out of RGB range!")
 }
 
 #[allow(clippy::suspicious_operation_groupings)]
@@ -113,21 +112,21 @@ impl Hittable for Sphere {
     }
 }
 
-struct HittableList {
+pub struct HittableList {
     objects: Vec<Box<dyn Hittable>>,
 }
 
 impl HittableList {
-    fn new() -> Self { Self {objects: Vec::new()} }
+    pub fn new() -> Self { Self {objects: Vec::new()} }
 
-    fn push<T>(mut self, object: T)
+    pub fn push<T>(&mut self, object: T)
     where 
         T: Hittable + 'static,
     {
         self.objects.push(Box::new(object));
     }
 
-    fn clear(mut self) {
+    pub fn clear(&mut self) {
         self.objects.clear();
     }
 }

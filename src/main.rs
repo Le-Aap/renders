@@ -4,9 +4,14 @@ use std::{
         BufWriter
     }
 };
-use renders::{ray_math::Ray, vec_math::Vec3};
+use renders::{ray_math::Ray, vec_math::Vec3, HittableList, Sphere};
 
 fn main() {
+    let mut world = HittableList::new();
+
+    world.push(Sphere::new(Vec3::new(0.0, 0.0, -1.0), 0.5));
+    world.push(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0));
+
     let image_width = 400;
     let aspect_ratio = 16.0 / 9.0;
 
@@ -44,7 +49,7 @@ fn main() {
 
             let camera_ray = Ray::new(camera_center, ray_direction);
 
-            let color = renders::ray_color(&camera_ray);
+            let color = renders::ray_color(&camera_ray, &world);
 
             file.write_all(
                 color
