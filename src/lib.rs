@@ -1,6 +1,7 @@
 use colors::Color;
 use ray_math::Ray;
 use vec_math::{dot, Vec3};
+use std::{fmt::Debug, vec::Vec};
 
 pub mod vec_math;
 pub mod colors;
@@ -109,5 +110,47 @@ impl Hittable for Sphere {
             point: hit_point,
             normal, front_face
         })
+    }
+}
+
+struct HittableList {
+    objects: Vec<Box<dyn Hittable>>,
+}
+
+impl HittableList {
+    fn new() -> Self { Self {objects: Vec::new()} }
+
+    fn push<T>(mut self, object: T)
+    where 
+        T: Hittable + 'static,
+    {
+        self.objects.push(Box::new(object));
+    }
+
+    fn clear(mut self) {
+        self.objects.clear();
+    }
+}
+
+impl Hittable for HittableList {
+    fn hit(&self, ray: &Ray, tmin: f64, tmax: f64) -> Option<HitRecord> {
+        let mut current = None;
+
+        for hittable in &self.objects {
+            if let Some(hit) = hittable.hit(ray, tmin, tmax) {
+                current = match current {
+                    None => Some(hit),
+                    Some(current_hit) => {
+                        if (current_hit.t) > hit.t { 
+                            Some(hit)
+                        } else {
+                            Some(current_hit)
+                        }
+                    }
+                }
+            }
+        }
+
+        current
     }
 }
