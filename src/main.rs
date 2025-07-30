@@ -4,13 +4,13 @@ use std::{
         BufWriter
     }
 };
-use renders::{ray_math::Ray, vec_math::Vec3, HittableList, Sphere};
+use renders::{ray_math::Ray, vec_math::Vec3, Hittables, Sphere};
 
 fn main() {
-    let mut world = HittableList::new();
+    let mut world = Hittables::new();
 
-    world.push(Sphere::new(Vec3::new(0.0, 0.0, -1.0), 0.5));
-    world.push(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0));
+    world.add(Sphere::new(Vec3::new(0.0, 0.0, -1.0), 0.5));
+    world.add(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0));
 
     let image_width = 400;
     let aspect_ratio = 16.0 / 9.0;
