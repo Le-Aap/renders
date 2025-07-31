@@ -1,7 +1,7 @@
 use std::ops;
 
 /// Struct for representing 3d Math vectors.
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Default)]
 pub struct Vec3 {
     x:f64,
     y:f64,

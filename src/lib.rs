@@ -3,11 +3,13 @@ use ray_math::Ray;
 use vec_math::{dot, Vec3};
 use std::{vec::Vec};
 use interval::Interval;
+use camera::{Camera, CameraBuilder};
 
 pub mod interval;
 pub mod vec_math;
 pub mod colors;
 pub mod ray_math;
+pub mod camera;
 
 /// Calculates the color at the end of a ray.
 /// If a bad color value is produced, black is returned instead.

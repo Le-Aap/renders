@@ -54,7 +54,7 @@ mod tests {
         assert_eq!(Interval::new(f64::INFINITY, -f64::INFINITY), Interval::empty());
         assert_eq!(Interval::new(-f64::INFINITY, f64::INFINITY), Interval::universe());
         assert_ne!(Interval::new(0.0, 1.0), Interval::new(1.0, 3.0));
-        let default_interval: Interval = Default::default();
+        let default_interval: Interval = Interval::default();
         assert_eq!(default_interval, Interval::empty());
     }
 
@@ -75,14 +75,14 @@ mod tests {
         assert!(!Interval::empty().contains(0.0));
         assert!(!Interval::empty().contains(f64::INFINITY));
         assert!(!Interval::empty().contains(-f64::INFINITY));
-        assert!(!Interval::empty().contains(1000000.0));
-        assert!(!Interval::empty().contains(-1000000.0));
+        assert!(!Interval::empty().contains(1_000_000.0));
+        assert!(!Interval::empty().contains(-1_000_000.0));
 
         assert!(Interval::universe().contains(0.0));
         assert!(Interval::universe().contains(f64::INFINITY));
         assert!(Interval::universe().contains(-f64::INFINITY));
-        assert!(Interval::universe().contains(1000000.0));
-        assert!(Interval::universe().contains(-1000000.0));
+        assert!(Interval::universe().contains(1_000_000.0));
+        assert!(Interval::universe().contains(-1_000_000.0));
 
         let a = Interval::new(-1.0, 1.0);
         assert!(a.contains(0.0));

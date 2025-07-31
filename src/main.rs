@@ -4,7 +4,7 @@ use std::{
         BufWriter
     }
 };
-use renders::{ray_math::Ray, vec_math::Vec3, Hittables, Sphere};
+use renders::{camera::{CameraBuilder, Camera}, ray_math::Ray, vec_math::Vec3, Hittables, Sphere};
 
 fn main() {
     let mut world = Hittables::new();
