@@ -2,7 +2,9 @@ use colors::Color;
 use ray_math::Ray;
 use vec_math::{dot, Vec3};
 use std::{vec::Vec};
+use interval::Interval;
 
+pub mod interval;
 pub mod vec_math;
 pub mod colors;
 pub mod ray_math;
@@ -156,44 +158,5 @@ impl Hittable for Hittables {
         }
 
         current
-    }
-}
-
-pub struct Interval {
-    min: f64,
-    max: f64,
-}
-
-impl Interval {
-    #[must_use]
-    pub const fn new(min: f64, max: f64) -> Self { Self {min, max} } 
-
-    #[must_use]
-    pub fn size(&self) -> f64 { self.max - self.min }
-
-    /// Returns true if x is contained in the interval: min <= x <= max
-    #[must_use]
-    pub fn contains(&self, x: f64) -> bool { self.min <= x && x <= self.max }
-    
-    /// Returns true if x is surrounded by the interval: min < x < max
-    #[must_use]
-    pub fn surrounds(&self, x: f64) -> bool { self.min < x && x < self.max }
-
-    #[must_use]
-    pub const fn empty() -> Self { Self { min: f64::INFINITY, max: -f64::INFINITY } }
-
-    #[must_use]
-    pub const fn universe() -> Self { Self { min: -f64::INFINITY, max: f64::INFINITY } }
-
-    #[must_use]
-    pub const fn min(&self) -> f64 { self.min }
-
-    #[must_use]
-    pub const fn max(&self) -> f64 { self.max }
-}
-
-impl Default for Interval {
-    fn default() -> Self {
-        Self::empty()
     }
 }
