@@ -7,35 +7,69 @@ pub struct Interval {
 
 impl Interval {
     #[must_use]
-    pub const fn new(min: f64, max: f64) -> Self { Self {min, max} } 
+    pub const fn new(min: f64, max: f64) -> Self {
+        Self { min, max }
+    }
 
     /// Calculates the signed size of the interval.
     #[must_use]
-    pub fn size(&self) -> f64 { self.max - self.min }
+    pub fn size(&self) -> f64 {
+        self.max - self.min
+    }
 
     /// Returns true if x is contained in the interval: min <= x <= max
     #[must_use]
-    pub fn contains(&self, x: f64) -> bool { self.min <= x && x <= self.max }
-    
+    pub fn contains(&self, x: f64) -> bool {
+        self.min <= x && x <= self.max
+    }
+
     /// Returns true if x is surrounded by the interval: min < x < max
     #[must_use]
-    pub fn surrounds(&self, x: f64) -> bool { self.min < x && x < self.max }
+    pub fn surrounds(&self, x: f64) -> bool {
+        self.min < x && x < self.max
+    }
+
+    /// Returns x clamped to the interval (inclusive)
+    #[must_use]
+    pub fn clamp(&self, x: f64) -> f64 {
+        if x < self.min {
+            self.min
+        } else if x > self.max {
+            self.max
+        } else {
+            x
+        }
+    }
 
     /// Creates the empty interval that contains nothing.
     #[must_use]
-    pub const fn empty() -> Self { Self { min: f64::INFINITY, max: -f64::INFINITY } }
+    pub const fn empty() -> Self {
+        Self {
+            min: f64::INFINITY,
+            max: -f64::INFINITY,
+        }
+    }
 
     /// Creates the universe interval that contains everything.
     #[must_use]
-    pub const fn universe() -> Self { Self { min: -f64::INFINITY, max: f64::INFINITY } }
+    pub const fn universe() -> Self {
+        Self {
+            min: -f64::INFINITY,
+            max: f64::INFINITY,
+        }
+    }
 
     /// Returns the min value of the interval.
     #[must_use]
-    pub const fn min(&self) -> f64 { self.min }
+    pub const fn min(&self) -> f64 {
+        self.min
+    }
 
     /// Returns the max value of the interval.
     #[must_use]
-    pub const fn max(&self) -> f64 { self.max }
+    pub const fn max(&self) -> f64 {
+        self.max
+    }
 }
 
 impl Default for Interval {
@@ -51,8 +85,14 @@ mod tests {
 
     #[test]
     fn interval_creation() {
-        assert_eq!(Interval::new(f64::INFINITY, -f64::INFINITY), Interval::empty());
-        assert_eq!(Interval::new(-f64::INFINITY, f64::INFINITY), Interval::universe());
+        assert_eq!(
+            Interval::new(f64::INFINITY, -f64::INFINITY),
+            Interval::empty()
+        );
+        assert_eq!(
+            Interval::new(-f64::INFINITY, f64::INFINITY),
+            Interval::universe()
+        );
         assert_ne!(Interval::new(0.0, 1.0), Interval::new(1.0, 3.0));
         let default_interval: Interval = Interval::default();
         assert_eq!(default_interval, Interval::empty());
@@ -100,5 +140,17 @@ mod tests {
         assert!(!a.surrounds(f64::INFINITY));
         assert!(!a.contains(-f64::INFINITY));
         assert!(!a.surrounds(-f64::INFINITY));
+    }
+
+    #[test]
+    fn clamp_float_to_interval() {
+        let x = 2.0;
+        let y = 0.0;
+        let z = -2.0;
+        let interval = Interval::new(-1.0, 2.0);
+
+        assert!(interval.clamp(x) - 2.0 <= f64::EPSILON);
+        assert!(interval.clamp(y) <= f64::EPSILON);
+        assert!(interval.clamp(z) - 1.0 <= f64::EPSILON);
     }
 }

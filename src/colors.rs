@@ -1,4 +1,6 @@
-use std::{fmt::{Debug, Display}, ops::{Add, Div, Mul, Sub}};
+use std::{fmt::{Debug, Display}, ops::{Add, AddAssign, Div, Mul, Sub}};
+use crate::interval::Interval;
+
 use super::vec_math::Vec3;
 
 /// Used to store an RGB value where R, G and B are in range \[0, 1\].
@@ -7,27 +9,20 @@ pub struct Color {
     vector: Vec3,
 }
 
-/// Error type for Color struct.
-#[derive(Debug)]
-pub enum ColorError {
-    RGBValOutOfRange(),
-}
-
 impl Color {
     /// Creates a new Color with values RGB in the range \[0,1\].
+    /// Values outside of the range will get clamped.
     /// # Example:
     /// ```
     /// use renders::colors::Color;
     /// let _ = Color::new(0.0, 0.5, 1.0);
     /// ```
-    /// # Panics
-    /// Panics if r, g or b are outside of the range \[0,1\].
     #[must_use]
     pub fn new(r:f64, g:f64, b:f64) -> Self {
-        assert!(r < 1.0 || r > 0.0, "RGB value should be in range [0,1]");
-        assert!(g < 1.0 || g > 0.0, "RGB value should be in range [0,1]");
-        assert!(b < 1.0 || b > 0.0, "RGB value should be in range [0,1]");
-
+        let rgb_range = Interval::new(0.0, 1.0);
+        let r = rgb_range.clamp(r);
+        let g = rgb_range.clamp(g);
+        let b = rgb_range.clamp(b);
         let vector = Vec3::new(r, g, b);
         Self{vector}
     }
@@ -49,11 +44,17 @@ impl Display for Color {
     }
 }
 
+impl AddAssign for Color {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
 impl Add for Color {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         let result = self.vector + rhs.vector;
-        result.try_into().expect("Error! RGB values must be in range [0,1]")
+        result.into()
     }
 }
 
@@ -61,7 +62,7 @@ impl Mul<f64> for Color {
     type Output = Self;
     fn mul(self, rhs: f64) -> Self::Output {
         let result = self.vector * rhs;
-        result.try_into().expect("Error! RGB values must be in range [0,1]")
+        result.into()
     }
 }
 
@@ -69,7 +70,7 @@ impl Mul<Color> for f64 {
     type Output = Color;
     fn mul(self, rhs: Color) -> Self::Output {
         let result = rhs.vector * self;
-        result.try_into().expect("Error! RGB values must be in range [0,1]")
+        result.into()
     }
 }
 
@@ -77,7 +78,7 @@ impl Div<f64> for Color {
     type Output = Self;
     fn div(self, rhs: f64) -> Self::Output {
         let result = self.vector / rhs;
-        result.try_into().expect("Error! RGB values must be in range [0,1]")
+        result.into()
     }
 }
 
@@ -85,23 +86,17 @@ impl Sub for Color {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         let result = self.vector - rhs.vector;
-        result.try_into().expect("Error! RGB values must be in range [0,1]")
+        result.into()
     }
 }
 
-impl TryFrom<Vec3> for Color {
-    type Error = ColorError;
-    fn try_from(vector: Vec3) -> Result<Self, ColorError> {
-        if vector.x() > 1.0 || vector.x() < 0.0 {
-            return Err(ColorError::RGBValOutOfRange());
-        }
-        if vector.y() > 1.0 || vector.y() < 0.0 {
-            return Err(ColorError::RGBValOutOfRange());
-        }
-        if vector.z() > 1.0 || vector.z() < 0.0 {
-            return Err(ColorError::RGBValOutOfRange());
-        }
-        Ok(Self{vector})
+impl From<Vec3> for Color {
+    fn from(value: Vec3) -> Self {
+        let rgb_range = Interval::new(0.0, 1.0);
+        let r = rgb_range.clamp(value.x());
+        let g = rgb_range.clamp(value.y());
+        let b = rgb_range.clamp(value.z());
+        Self { vector: Vec3::new(r, g, b) }
     }
 }
 
@@ -123,7 +118,7 @@ mod tests {
         assert_eq!(vec3, Vec3::new(1.0, 0.5, 0.0));
     
         let vec3 = Vec3::new(1.0, 0.5, 0.0);
-        let color2: Color = vec3.try_into().expect("This is impossible");
+        let color2: Color = vec3.into();
         assert_eq!(color2, color);
     }
     
@@ -145,26 +140,22 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn bounds_checking_add() {
-        let _ = Color::new(1.0, 0.5, 0.0) + Color::new(1.0, 0.5, 0.0);
+    fn color_clamping_add() {
+        assert_eq!(Color::new(1.0, 0.5, 0.0) + Color::new(1.0, 0.5, 0.0), Color::new(1.0, 1.0, 0.0));
     }
 
     #[test]
-    #[should_panic]
-    fn bounds_checking_sub() {
-        let _ = Color::new(1.0, 0.5, 0.0) - Color::new(2.0, 0.5, 0.0);
+    fn color_clamping_sub() {
+        assert_eq!(Color::new(1.0, 0.5, 0.0) - Color::new(2.0, 0.5, 0.0), Color::new(0.0, 0.0, 0.0));
     }
 
     #[test]
-    #[should_panic]
-    fn bounds_checking_mul() {
-        let _ = Color::new(1.0, 0.5, 0.0) * 10.0;
+    fn color_clamping_mul() {
+        assert_eq!(Color::new(1.0, 0.5, 0.0) * 10.0, Color::new(1.0, 1.0, 0.0));
     }
 
     #[test]
-    #[should_panic]
-    fn bounds_checking_div() {
-        let _ = Color::new(1.0, 0.5, 0.0) / 0.1;
+    fn color_clamping_div() {
+        assert_eq!(Color::new(1.0, 0.5, 0.0) / 0.1, Color::new(1.0, 1.0, 0.0));
     }
 }

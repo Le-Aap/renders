@@ -17,13 +17,9 @@ pub fn ray_color<T: Hittable>(ray: &Ray, world: &T) -> Color {
     world.hit(ray, &Interval::new(0.0, f64::INFINITY)).map_or_else(
     || {
         let a = 0.5 * (ray.direction().normalized().y() + 1.0);
-        ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0))
-            .try_into()
-            .unwrap_or_else(|_|{Color::new(0.0, 0.0, 0.0)})
+        ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
     },
-    |hit| ((hit.normal + Vec3::new(1.0, 1.0, 1.0)) * 0.5)
-            .try_into()
-            .unwrap_or_else(|_|{Color::new(0.0, 0.0, 0.0)}))
+    |hit| ((hit.normal + Vec3::new(1.0, 1.0, 1.0)) * 0.5).into())
 }
 
 /// Type returned by all hits.
