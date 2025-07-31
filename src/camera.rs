@@ -21,7 +21,7 @@ use std::{fs::File, io::{prelude::*, BufWriter}};
 /// - `center`: (0.0, 0.0, 0.0),  (Vec3)
 /// - `focal_length`: 1.0,
 /// - `viewport_height`: 2.0
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct CameraBuilder {
     aspect_ratio: f64,
     image_width: u32,
@@ -132,7 +132,7 @@ impl Default for CameraBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Camera {
     image_width: u32,
     image_height: u32,
@@ -171,7 +171,7 @@ impl Camera {
         file.flush().expect("Error while executing file-writes");
         println!("\rDone.                           ");
     }
-    
+
     fn ray_color<T: Hittable>(ray: &Ray, world: &T) -> Color {
         world
             .hit(ray, &Interval::new(0.0, f64::INFINITY))
@@ -188,5 +188,41 @@ impl Camera {
                         .unwrap_or_else(|_| Color::new(0.0, 0.0, 0.0))
                 },
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_camera_creation() {
+        let camera_a = CameraBuilder::new()
+            .set_aspect_ratio(1.0)
+            .set_camera_center(Vec3::new(0.0, 0.0, 0.0))
+            .set_focal_length(1.0)
+            .set_image_width(100)
+            .set_viewport_height(2.0)
+            .to_camera();
+
+        let camera_b = CameraBuilder::new()
+            .set_viewport_height(2.0)
+            .set_camera_center(Vec3::new(0.0, 0.0, 0.0))
+            .set_aspect_ratio(1.0)
+            .set_image_width(100)
+            .set_focal_length(1.0)
+            .to_camera();
+
+        assert_eq!(camera_a, CameraBuilder::default().to_camera());
+        assert_eq!(camera_b, camera_a);
+
+        let camera_c = CameraBuilder::new()
+            .set_aspect_ratio(2.0)
+            .set_camera_center(Vec3::new(3.0, 0.0, 4.0))
+            .set_focal_length(1.5)
+            .set_image_width(2_000_000)
+            .set_viewport_height(12.0)
+            .to_camera();
+
+        assert_ne!(camera_a, camera_c);
     }
 }
