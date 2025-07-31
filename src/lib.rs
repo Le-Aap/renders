@@ -1,7 +1,6 @@
 use colors::Color;
 use ray_math::Ray;
 use vec_math::{dot, Vec3};
-use core::f64;
 use std::{vec::Vec};
 
 pub mod vec_math;
@@ -12,7 +11,7 @@ pub mod ray_math;
 /// If a bad color value is produced, black is returned instead.
 #[must_use]
 pub fn ray_color<T: Hittable>(ray: &Ray, world: &T) -> Color {
-    world.hit(ray, 0.0, f64::INFINITY).map_or_else(
+    world.hit(ray, &Interval::new(0.0, f64::INFINITY)).map_or_else(
     || {
         let a = 0.5 * (ray.direction().normalized().y() + 1.0);
         ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0))
@@ -39,7 +38,7 @@ pub struct HitRecord {
 /// Trait to be implemented for all things that can be hit by a ray.
 pub trait Hittable {
     /// Intersects the ray with the surface and returns the hit if there was one.
-    fn hit(&self, ray: &Ray, tmin: f64, tmax: f64) -> Option<HitRecord>;
+    fn hit(&self, ray: &Ray, ray_t: &Interval) -> Option<HitRecord>;
 }
 
 /// Represents a sphere with a surface. 
@@ -73,7 +72,7 @@ pub fn calculate_face_normal(ray: &Ray, outward_normal: &Vec3) -> (bool, Vec3) {
 
 impl Hittable for Sphere {
     #[allow(clippy::suspicious_operation_groupings)]
-    fn hit(&self, ray: &Ray, tmin: f64, tmax: f64) -> Option<HitRecord> {
+    fn hit(&self, ray: &Ray, ray_t: &Interval) -> Option<HitRecord> {
         let oc = self.center - *ray.origin();
         let a = ray.direction().square_length();
         let h = dot(ray.direction(), &oc);
@@ -87,9 +86,9 @@ impl Hittable for Sphere {
         let discriminant = discriminant.sqrt();
 
         let mut root = (h - discriminant) / a;
-        if root <= tmin || tmax <= root {
+        if !ray_t.surrounds(root) {
             root = (h + discriminant) / a;
-            if root <= tmin || tmax <= root {
+            if !ray_t.surrounds(root) {
                 return None;
             }
         }
@@ -138,11 +137,11 @@ impl Default for Hittables {
 
 impl Hittable for Hittables {
     /// Returns the nearest hit to any object in the collection
-    fn hit(&self, ray: &Ray, tmin: f64, tmax: f64) -> Option<HitRecord> {
+    fn hit(&self, ray: &Ray, ray_t: &Interval) -> Option<HitRecord> {
         let mut current = None;
 
         for hittable in &self.objects {
-            if let Some(hit) = hittable.hit(ray, tmin, tmax) {
+            if let Some(hit) = hittable.hit(ray, ray_t) {
                 current = match current {
                     None => Some(hit),
                     Some(current_hit) => {
@@ -157,5 +156,44 @@ impl Hittable for Hittables {
         }
 
         current
+    }
+}
+
+pub struct Interval {
+    min: f64,
+    max: f64,
+}
+
+impl Interval {
+    #[must_use]
+    pub const fn new(min: f64, max: f64) -> Self { Self {min, max} } 
+
+    #[must_use]
+    pub fn size(&self) -> f64 { self.max - self.min }
+
+    /// Returns true if x is contained in the interval: min <= x <= max
+    #[must_use]
+    pub fn contains(&self, x: f64) -> bool { self.min <= x && x <= self.max }
+    
+    /// Returns true if x is surrounded by the interval: min < x < max
+    #[must_use]
+    pub fn surrounds(&self, x: f64) -> bool { self.min < x && x < self.max }
+
+    #[must_use]
+    pub const fn empty() -> Self { Self { min: f64::INFINITY, max: -f64::INFINITY } }
+
+    #[must_use]
+    pub const fn universe() -> Self { Self { min: -f64::INFINITY, max: f64::INFINITY } }
+
+    #[must_use]
+    pub const fn min(&self) -> f64 { self.min }
+
+    #[must_use]
+    pub const fn max(&self) -> f64 { self.max }
+}
+
+impl Default for Interval {
+    fn default() -> Self {
+        Self::empty()
     }
 }

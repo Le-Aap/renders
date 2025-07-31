@@ -12,7 +12,7 @@ fn main() {
     world.add(Sphere::new(Vec3::new(0.0, 0.0, -1.0), 0.5));
     world.add(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0));
 
-    let image_width = 400;
+    let image_width = 1080;
     let aspect_ratio = 16.0 / 9.0;
 
     #[allow(clippy::cast_possible_truncation)]
