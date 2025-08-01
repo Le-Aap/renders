@@ -34,6 +34,7 @@ pub struct CameraBuilder {
     focal_length: f64,
     viewport_height: f64,
     samples_per_pixel: u32,
+    max_bounces: u32,
 }
 
 impl CameraBuilder {
@@ -46,6 +47,7 @@ impl CameraBuilder {
             focal_length: 1.0,
             viewport_height: 2.0,
             samples_per_pixel: 10,
+            max_bounces: 10,
         }
     }
 
@@ -58,6 +60,7 @@ impl CameraBuilder {
             focal_length: self.focal_length,
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
         }
     }
 
@@ -70,6 +73,7 @@ impl CameraBuilder {
             focal_length: self.focal_length,
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
         }
     }
 
@@ -82,6 +86,7 @@ impl CameraBuilder {
             focal_length: self.focal_length,
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
         }
     }
 
@@ -94,6 +99,7 @@ impl CameraBuilder {
             focal_length,
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
         }
     }
 
@@ -106,6 +112,7 @@ impl CameraBuilder {
             focal_length: self.focal_length,
             viewport_height,
             samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
         }
     }
 
@@ -118,6 +125,20 @@ impl CameraBuilder {
             focal_length: self.focal_length,
             viewport_height: self.viewport_height,
             samples_per_pixel,
+            max_bounces: self.max_bounces,
+        }
+    }
+
+    #[must_use]
+    pub const fn set_max_bounces(self, max_bounces: u32) -> Self {
+        Self {
+            aspect_ratio: self.aspect_ratio,
+            image_width: self.image_width,
+            center: self.center,
+            focal_length: self.focal_length,
+            viewport_height: self.viewport_height,
+            samples_per_pixel: self.samples_per_pixel,
+            max_bounces,
         }
     }
 
@@ -154,6 +175,7 @@ impl CameraBuilder {
             pixel_delta_v,
             pixel_samples_scale,
             samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
         }
     }
 }
@@ -174,6 +196,7 @@ pub struct Camera {
     pixel_delta_v: Vec3,
     pixel_samples_scale: f64,
     samples_per_pixel: u32,
+    max_bounces: u32,
 }
 
 impl Camera {
@@ -195,7 +218,7 @@ impl Camera {
                 
                 for _ in 0..self.samples_per_pixel {
                     let camera_ray = self.get_ray(i, j);
-                    pixel_color += ray_color(&camera_ray, world) * self.pixel_samples_scale;
+                    pixel_color += ray_color(&camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
                 }
 
                 file.write_all(pixel_color.to_string().as_bytes())
@@ -222,16 +245,21 @@ fn sample_square() -> Vec3 {
     Vec3::new(rand::random::<f64>() - 0.5, rand::random::<f64>() - 0.5, 0.0)
 }
 
-fn ray_color<T: Hittable>(ray: &Ray, world: &T) -> Color {
+fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
+    if depth == 0 {
+        return Color::new(0.0, 0.0, 0.0);
+    }
+
     world
-        .hit(ray, &Interval::new(0.0, f64::INFINITY))
+        .hit(ray, &Interval::new(0.00001, f64::INFINITY))
         .map_or_else(
             || {
                 let a = 0.5 * (ray.direction().normalized().y() + 1.0);
                 ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
             },
             |hit| {
-                ((hit.normal + Vec3::new(1.0, 1.0, 1.0)) * 0.5).into()
+                let ray_direction = hit.normal + Vec3::random_unit_vector();
+                0.5 * ray_color(&Ray::new(hit.point, ray_direction), depth - 1, world)
             },
         )
 }

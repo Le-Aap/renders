@@ -32,9 +32,13 @@ impl Display for Color {
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let r = self.vector.x() * 255.999;
-        let g = self.vector.y() * 255.999;
-        let b = self.vector.z() * 255.999;
+        let r = self.vector.x();
+        let g = self.vector.y();
+        let b = self.vector.z();
+
+        let r = linear_to_gamma(r) * 255.999;
+        let g = linear_to_gamma(g) * 255.999;
+        let b = linear_to_gamma(b) * 255.999;
 
         let r = r.floor() as u8;
         let g = g.floor() as u8;
@@ -103,6 +107,15 @@ impl From<Vec3> for Color {
 impl From<Color> for Vec3 {
     fn from(value: Color) -> Self {
         value.vector
+    }
+}
+
+fn linear_to_gamma(linear_component: f64) -> f64 {
+    if linear_component > 0.0 {
+        linear_component.sqrt()
+    }
+    else {
+        0.0
     }
 }
 

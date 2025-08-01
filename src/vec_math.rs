@@ -1,5 +1,7 @@
 use std::ops;
 
+use crate::interval::Interval;
+
 /// Struct for representing 3d Math vectors.
 #[derive(PartialEq, Debug, Clone, Copy, Default)]
 pub struct Vec3 {
@@ -43,6 +45,45 @@ impl Vec3 {
             )
         )
     } 
+
+    /// Returns a random vector with x, y and z in the range [0.0, 1.0]
+    #[must_use]
+    pub fn random() -> Self {
+        Self { x: rand::random(), y: rand::random(), z: rand::random() }
+    }
+
+    /// Returns a random vector with x, y and z in the provided range.
+    #[must_use]
+    pub fn random_range(range: &Interval) -> Self {
+        Self {
+            x: range.min() + (range.max() - range.min()) * rand::random::<f64>(),
+            y: range.min() + (range.max() - range.min()) * rand::random::<f64>(),
+            z: range.min() + (range.max() - range.min()) * rand::random::<f64>(),
+        }
+    }
+
+    /// Returns a random vector that lies on the unit sphere.
+    #[must_use]
+    pub fn random_unit_vector() -> Self {
+        loop {
+            let p = Self::random();
+            let square_length = p.square_length();
+            if 1e-160 < square_length && square_length <= 1.0 {
+                return p / square_length.sqrt();
+            }
+        }
+    }
+
+    /// Returns a random vector that lies on the unit hemisphere that surrounds the normal vector.
+    #[must_use]
+    pub fn random_on_hemisphere(normal: &Self) -> Self{
+        let on_unit_sphere = Self::random_unit_vector();
+        if dot(&on_unit_sphere, normal) > 0.0 {
+            on_unit_sphere
+        } else {
+            -1.0 * on_unit_sphere
+        }
+    }
 
     /// Returns an unit-vector with the same direction.
     /// # Example
