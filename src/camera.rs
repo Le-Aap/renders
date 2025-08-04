@@ -221,6 +221,8 @@ impl Camera {
                     pixel_color += ray_color(&camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
                 }
 
+                pixel_color = pixel_color.to_gamma();
+
                 file.write_all(pixel_color.to_string().as_bytes())
                     .expect("Error while writing to file-buffer");
             }

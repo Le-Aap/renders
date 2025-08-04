@@ -26,6 +26,17 @@ impl Color {
         let vector = Vec3::new(r, g, b);
         Self{vector}
     }
+
+    #[must_use]
+    pub fn to_gamma(&self) -> Self  {
+        Self {
+            vector: Vec3::new(
+                linear_to_gamma(self.vector.x()),
+                linear_to_gamma(self.vector.y()),
+                linear_to_gamma(self.vector.z()),
+            )
+        }
+    }
 }
 
 impl Display for Color {
@@ -36,9 +47,9 @@ impl Display for Color {
         let g = self.vector.y();
         let b = self.vector.z();
 
-        let r = linear_to_gamma(r) * 255.999;
-        let g = linear_to_gamma(g) * 255.999;
-        let b = linear_to_gamma(b) * 255.999;
+        let r = r * 255.999;
+        let g = g * 255.999;
+        let b = b * 255.999;
 
         let r = r.floor() as u8;
         let g = g.floor() as u8;
