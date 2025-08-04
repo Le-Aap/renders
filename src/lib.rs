@@ -157,3 +157,14 @@ impl Hittable for Hittables {
         current
     }
 }
+/// Represents 
+pub struct Reflection {
+    pub reflected_ray: Ray,
+    pub light_attenuation: Color,
+}
+
+/// Interface for all visible solid surfaces. Contains the functions needed to generate the reflections. 
+pub trait BRDFSurface {
+    /// Function that takes the incomming ray and collision and generates an outgoing ray and any attenuation caused by the reflection. If None is returned all light is absorbed.
+    fn brdf(incoming: &Ray, hit: HitRecord) -> Option<Reflection>;
+}
