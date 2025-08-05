@@ -25,7 +25,8 @@ use std::{
 /// - `center`: (0.0, 0.0, 0.0),  (Vec3)
 /// - `focal_length`: 1.0,
 /// - `viewport_height`: 2.0,
-/// - `samples_per_pixel`: 10
+/// - `samples_per_pixel`: 10,
+/// - `max_bounces`: 10
 #[derive(Debug, PartialEq)]
 pub struct CameraBuilder {
     aspect_ratio: f64,
