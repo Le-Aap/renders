@@ -98,6 +98,12 @@ impl Vec3 {
         *self / self.length()
     }
 
+    /// Returns true if x y and z of the vector are very near to zero.
+    #[must_use]
+    pub fn near_zero(&self) -> bool {
+        self.x.abs() < 1e-8 && self.y.abs() < 1e-8 && self.z.abs() < 1e-8
+    }
+
     #[must_use]
     pub const fn x(&self) -> f64 {
         self.x
@@ -174,6 +180,19 @@ impl ops::Mul<Vec3> for f64 {
     }
 }
 
+impl ops::Mul<Self> for Vec3 {
+    type Output = Self;
+
+    /// Performs memberwise multiplication, for dot product use dot(a, b)
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+            z: self.z * rhs.z,
+        }
+    }
+}
+
 impl ops::Div<f64> for Vec3 {
     type Output = Self;
 
@@ -199,6 +218,12 @@ pub fn dot(a: &Vec3, b: &Vec3) -> f64 {
     a.y.mul_add(b.y, 
     a.z * b.z
     ))
+}
+
+/// Returns the reflection of a, with normal vector n. NOTE: assumes n is normalized.
+#[must_use]
+pub fn reflect(a: &Vec3, n: &Vec3) -> Vec3 {
+    *a - 2.0 * dot(a, n) * *n
 }
 
 /// Returns the cross product of a and b.

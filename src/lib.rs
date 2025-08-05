@@ -1,14 +1,16 @@
 use colors::Color;
 use ray_math::Ray;
 use vec_math::{dot, Vec3};
-use std::{vec::Vec};
+use std::vec::Vec;
 use interval::Interval;
+use brdfs::BRDF;
 
 pub mod interval;
 pub mod vec_math;
 pub mod colors;
 pub mod ray_math;
 pub mod camera;
+pub mod brdfs;
 
 /// Calculates the color at the end of a ray.
 /// If a bad color value is produced, black is returned instead.
@@ -32,6 +34,8 @@ pub struct HitRecord {
     pub t: f64,
     /// True if the surface hit is a front-face.
     pub front_face: bool,
+    /// BRDF at hit.
+    pub brdf: BRDF,
 }
 
 /// Trait to be implemented for all things that can be hit by a ray.
@@ -44,6 +48,7 @@ pub trait Hittable {
 pub struct Sphere {
     center: Vec3,
     radius: f64,
+    surface_shader: BRDF,
 }
 
 impl Sphere {
@@ -51,9 +56,9 @@ impl Sphere {
     /// # Panics
     /// panics if radius is set to be smaller than 0.
     #[must_use]
-    pub fn new(center: Vec3, radius: f64) -> Self {
+    pub fn new(center: Vec3, radius: f64, surface_shader: BRDF) -> Self {
         assert!(radius >= 0.0);
-        Self {center, radius}
+        Self {center, radius, surface_shader}
     }
 }
 
@@ -98,6 +103,7 @@ impl Hittable for Sphere {
         Some(HitRecord {
             t: root,
             point: hit_point,
+            brdf: self.surface_shader.clone(),
             normal, front_face
         })
     }
@@ -156,15 +162,4 @@ impl Hittable for Hittables {
 
         current
     }
-}
-/// Represents 
-pub struct Reflection {
-    pub reflected_ray: Ray,
-    pub light_attenuation: Color,
-}
-
-/// Interface for all visible solid surfaces. Contains the functions needed to generate the reflections. 
-pub trait BRDFSurface {
-    /// Function that takes the incomming ray and collision and generates an outgoing ray and any attenuation caused by the reflection. If None is returned all light is absorbed.
-    fn brdf(incoming: &Ray, hit: HitRecord) -> Option<Reflection>;
 }

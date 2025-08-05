@@ -260,9 +260,16 @@ fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
                 ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
             },
             |hit| {
-                let ray_direction = hit.normal + Vec3::random_unit_vector();
-                0.5 * ray_color(&Ray::new(hit.point, ray_direction), depth - 1, world)
-            },
+                match (hit.brdf)(ray, &hit) {
+                    Some(reflection) => {
+                        reflection.attenuation * ray_color(&reflection.reflected, depth - 1, world)
+                    }
+                    None => {
+                        Color::new(0.0, 0.0, 0.0)
+                    }
+                }
+                
+            }
         )
 }
 
