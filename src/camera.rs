@@ -1,8 +1,7 @@
 use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3};
 use rand;
 use std::{
-    fs::File,
-    io::{BufWriter, prelude::*},
+    fmt::Display, fs::File, io::{prelude::*, BufWriter}
 };
 
 /// Struct used to build a camera.
@@ -205,31 +204,32 @@ impl Camera {
     /// # Panics
     /// Funcion may panic if any of the file opperations fail.
     pub fn render<T: Hittable>(&self, world: &T) {
-        let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
+        let mut pixels = PixelBuffer::new(
+            self.image_width.try_into().expect("Creating pixel buffer failed: image wider than can be represented by usize"), 
+            self.image_height.try_into().expect("Creating pixel buffer failed: image higher than can be represented by usize"));        
 
-        file.write_all(
-            format!("P3\n{0} {1}\n255\n", self.image_width, self.image_height).as_bytes(),
-        )
-        .expect("Error while writing to file-buffer");
-
-        for j in 0..self.image_height {
-            print!("\rScanlines remaining: {}        ", self.image_height - j);
-            for i in 0..self.image_width {
+        for y in 0..self.image_height {
+            print!("\rScanlines remaining: {}        ", self.image_height - y);
+            for x in 0..self.image_width {
                 let mut pixel_color = Color::new(0.0, 0.0, 0.0);
                 
                 for _ in 0..self.samples_per_pixel {
-                    let camera_ray = self.get_ray(i, j);
+                    let camera_ray = self.get_ray(x, y);
                     pixel_color += ray_color(&camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
                 }
 
                 pixel_color = pixel_color.to_gamma();
 
-                file.write_all(pixel_color.to_string().as_bytes())
-                    .expect("Error while writing to file-buffer");
+                pixels.set_pixel(
+                    x.try_into().expect("Writing to pixel buffer failed: x greater than can be represented by usize"),
+                    y.try_into().expect("Writing to pixel buffer failed: y greater than can be represented by usize"),
+                    pixel_color);
             }
         }
-
-        file.flush().expect("Error while executing file-writes");
+        
+        let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
+        file.write_all(pixels.to_string().as_bytes()).expect("Error while writing to file buffer.");
+        file.flush().expect("Error while flushing file buffer.");
         println!("\rDone.                           ");
     }
 
@@ -272,6 +272,64 @@ fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
                 
             }
         )
+}
+
+/// A structure that provides a 2d interface to access pixels that are internally stored efficiently for the cache.
+pub struct PixelBuffer {
+    colors: Vec<Color>,
+    width: usize,
+    height: usize,
+}
+
+impl PixelBuffer {
+    /// Sets up a new color buffer with the bounds provided. All pixels are initialized to black.
+    #[must_use]
+    pub fn new(width: usize, height: usize) -> Self {
+        let size = width * height;
+        let mut colors = Vec::with_capacity(size);
+        let initial_color = Color::new(0.0, 0.0, 0.0);
+        for _ in 0..size {
+            colors.push(initial_color);
+        }
+
+        Self { colors, width, height }
+    }
+
+    /// Set pixel at coordinate x, y. Both x and y are zero indexed
+    /// # Panics
+    /// Panics if x or y fail a bounds check
+    pub fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
+        assert!(x < self.width);
+        assert!(y < self.height);
+        self.colors[y * self.width + x] = color;
+    }
+
+    /// Gets pixel at coordinate x, y. Both x and y are zero indexed.
+    /// # Panics
+    /// Panics if x is outside of the range [0, width>.
+    /// Panics if y is outside of the range [0, height>.
+    #[must_use]
+    pub fn get_pixel(&self, x: usize, y: usize) -> Color {
+        assert!(x < self.width);
+        assert!(y < self.height);
+        self.colors[y * self.width + x]
+    }
+}
+
+/// Displays pixel buffer as a ppm image
+impl Display for PixelBuffer {
+    /// Prints the pixel data stored in the pixel buffer as a .ppm image
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "P3\n{0} {1}\n255\n{2}",
+            self.width,
+            self.height,
+            self.colors.iter()
+            .map(|color| {color.to_string()})
+            .collect::<String>()
+        )
+    }
 }
 
 #[cfg(test)]
