@@ -1,7 +1,9 @@
 use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3};
 use rand;
 use std::{
-    fmt::Display, fs::File, io::{prelude::*, BufWriter}
+    fmt::Display,
+    fs::File,
+    io::{BufWriter, prelude::*},
 };
 
 /// Struct used to build a camera.
@@ -205,32 +207,45 @@ impl Camera {
     /// Funcion may panic if any of the file opperations fail.
     pub fn render<T: Hittable>(&self, world: &T) {
         let mut pixels = PixelBuffer::new(
-            self.image_width.try_into().expect("Creating pixel buffer failed: image wider than can be represented by usize"), 
-            self.image_height.try_into().expect("Creating pixel buffer failed: image higher than can be represented by usize"));        
+            self.image_width.try_into().expect(
+                "Creating pixel buffer failed: image wider than can be represented by usize",
+            ),
+            self.image_height.try_into().expect(
+                "Creating pixel buffer failed: image higher than can be represented by usize",
+            ),
+        );
 
-        for y in 0..self.image_height {
-            print!("\rScanlines remaining: {}        ", self.image_height - y);
-            for x in 0..self.image_width {
-                let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-                
-                for _ in 0..self.samples_per_pixel {
-                    let camera_ray = self.get_ray(x, y);
-                    pixel_color += ray_color(&camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
-                }
-
-                pixel_color = pixel_color.to_gamma();
-
-                pixels.set_pixel(
-                    x.try_into().expect("Writing to pixel buffer failed: x greater than can be represented by usize"),
-                    y.try_into().expect("Writing to pixel buffer failed: y greater than can be represented by usize"),
-                    pixel_color);
-            }
-        }
+        let total_pixels = self.image_width * self.image_height;
         
+        for (x, y) in &pixels {
+            let percentage = 100.0 * f64::from(x + y * self.image_width) / f64::from(total_pixels);
+            print!("\rRendering ({percentage:.1})%               ");
+            let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+
+            for _ in 0..self.samples_per_pixel {
+                let camera_ray = self.get_ray(x, y);
+                pixel_color +=
+                    ray_color(&camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
+            }
+
+            pixel_color = pixel_color.to_gamma();
+
+            pixels.set_pixel(
+                x.try_into().expect(
+                    "Writing to pixel buffer failed: x greater than can be represented by usize",
+                ),
+                y.try_into().expect(
+                    "Writing to pixel buffer failed: y greater than can be represented by usize",
+                ),
+                pixel_color,
+            );
+        }
+
         let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
-        file.write_all(pixels.to_string().as_bytes()).expect("Error while writing to file buffer.");
+        file.write_all(pixels.to_string().as_bytes())
+            .expect("Error while writing to file buffer.");
         file.flush().expect("Error while flushing file buffer.");
-        println!("\rDone.                           ");
+        print!("\rDone.                           ");
     }
 
     fn get_ray(&self, i: u32, j: u32) -> Ray {
@@ -238,14 +253,18 @@ impl Camera {
         let pixel_sample = self.pixel_origin
             + ((f64::from(i) + offset.x()) * self.pixel_delta_u)
             + ((f64::from(j) + offset.y()) * self.pixel_delta_v);
-        
+
         let ray_direction = pixel_sample - self.center;
         Ray::new(self.center, ray_direction)
     }
 }
 
 fn sample_square() -> Vec3 {
-    Vec3::new(rand::random::<f64>() - 0.5, rand::random::<f64>() - 0.5, 0.0)
+    Vec3::new(
+        rand::random::<f64>() - 0.5,
+        rand::random::<f64>() - 0.5,
+        0.0,
+    )
 }
 
 fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
@@ -260,17 +279,12 @@ fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
                 let a = 0.5 * (ray.direction().normalized().y() + 1.0);
                 ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
             },
-            |hit| {
-                match (hit.brdf)(ray, &hit) {
-                    Some(reflection) => {
-                        reflection.attenuation * ray_color(&reflection.reflected, depth - 1, world)
-                    }
-                    None => {
-                        Color::new(0.0, 0.0, 0.0)
-                    }
+            |hit| match (hit.brdf)(ray, &hit) {
+                Some(reflection) => {
+                    reflection.attenuation * ray_color(&reflection.reflected, depth - 1, world)
                 }
-                
-            }
+                None => Color::new(0.0, 0.0, 0.0),
+            },
         )
 }
 
@@ -292,7 +306,11 @@ impl PixelBuffer {
             colors.push(initial_color);
         }
 
-        Self { colors, width, height }
+        Self {
+            colors,
+            width,
+            height,
+        }
     }
 
     /// Set pixel at coordinate x, y. Both x and y are zero indexed
@@ -314,6 +332,11 @@ impl PixelBuffer {
         assert!(y < self.height);
         self.colors[y * self.width + x]
     }
+
+    #[must_use]
+    pub fn iter(&self) -> PixelIterator {
+        <&Self as IntoIterator>::into_iter(self)
+    }
 }
 
 /// Displays pixel buffer as a ppm image
@@ -325,10 +348,55 @@ impl Display for PixelBuffer {
             "P3\n{0} {1}\n255\n{2}",
             self.width,
             self.height,
-            self.colors.iter()
-            .map(|color| {color.to_string()})
-            .collect::<String>()
+            self.colors
+                .iter()
+                .map(|color| { color.to_string() })
+                .collect::<String>()
         )
+    }
+}
+
+impl IntoIterator for &PixelBuffer {
+    type Item = (u32, u32);
+
+    type IntoIter = PixelIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        PixelIterator::new(self.width, self.height)
+    }
+}
+
+pub struct PixelIterator {
+    current: usize,
+    width: usize,
+    max: usize,
+}
+
+impl Iterator for PixelIterator {
+    type Item = (u32, u32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current < self.max {
+            let curr: u32 = self.current.try_into().expect("Error casting usize to u32");
+            let width: u32 = self.width.try_into().expect("Error casting usize to u32");
+
+            self.current += 1;
+
+            Some((curr % width, curr / width))
+        } else {
+            None
+        }
+    }
+}
+
+impl PixelIterator {
+    #[must_use]
+    pub const fn new(width: usize, height: usize) -> Self {
+        Self {
+            current: 0,
+            max: width * height,
+            width,
+        }
     }
 }
 
