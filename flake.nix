@@ -17,7 +17,7 @@
       in
       with pkgs;
       {
-        devShells.default = mkShell {
+        devShell = mkShell {
           buildInputs = [
             bacon
             openssl

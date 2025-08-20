@@ -361,11 +361,27 @@ impl IntoIterator for &PixelBuffer {
 
     type IntoIter = PixelIterator;
 
+    /// Make an iterator over all pixel values.
     fn into_iter(self) -> Self::IntoIter {
         PixelIterator::new(self.width, self.height)
     }
 }
 
+/// Iterator over the indices in a pixel buffer.
+/// # Example
+/// ```
+/// # use renders::camera::*;
+/// let pixels = PixelBuffer::new(5, 5);
+/// assert_eq!(pixels.iter().count(), 25);
+/// let mut pixel_iter = pixels.iter();
+/// assert_eq!(pixel_iter.next(), Some((0, 0)));
+/// assert_eq!(pixel_iter.next(), Some((1, 0)));
+/// assert_eq!(pixel_iter.next(), Some((2, 0)));
+/// assert_eq!(pixel_iter.next(), Some((3, 0)));
+/// assert_eq!(pixel_iter.next(), Some((4, 0)));
+/// assert_eq!(pixel_iter.next(), Some((0, 1)));
+/// // etc.
+/// ```
 pub struct PixelIterator {
     current: usize,
     width: usize,
@@ -375,6 +391,7 @@ pub struct PixelIterator {
 impl Iterator for PixelIterator {
     type Item = (u32, u32);
 
+    /// Traverse pixels row by row.
     fn next(&mut self) -> Option<Self::Item> {
         if self.current < self.max {
             let curr: u32 = self.current.try_into().expect("Error casting usize to u32");
@@ -390,8 +407,7 @@ impl Iterator for PixelIterator {
 }
 
 impl PixelIterator {
-    #[must_use]
-    pub const fn new(width: usize, height: usize) -> Self {
+    const fn new(width: usize, height: usize) -> Self {
         Self {
             current: 0,
             max: width * height,
