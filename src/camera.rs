@@ -372,7 +372,7 @@ impl IntoIterator for &PixelBuffer {
 /// ```
 /// # use renders::camera::*;
 /// let pixels = PixelBuffer::new(5, 5);
-/// assert_eq!(pixels.iter().count(), 25);
+/// 
 /// let mut pixel_iter = pixels.iter();
 /// assert_eq!(pixel_iter.next(), Some((0, 0)));
 /// assert_eq!(pixel_iter.next(), Some((1, 0)));

@@ -20,16 +20,9 @@
         devShell = mkShell {
           buildInputs = [
             bacon
-            openssl
-            pkg-config
-            (
-              rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
-                extensions = [
-                  "rust-src"
-                  "rust-analyzer"
-                ];
-              })
-            )
+            (rust-bin.stable.latest.default.override {
+              extensions = [ "rust-src" ];
+            })
           ];
         };
       }
