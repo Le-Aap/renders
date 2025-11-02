@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 use crate::{colors::Color, vec_math::{reflect, Vec3}, HitRecord, Ray};
 
 /// Represents the effects of a reflections: A reflected ray and some amount of light attenuation.
@@ -8,7 +8,7 @@ pub struct Reflection {
 }
 
 /// Type of a shader or as the technical term goes, a BRDF.
-pub type BRDF = Rc<dyn Fn(&Ray, &HitRecord) -> Option<Reflection>>; 
+pub type BRDF = Arc<dyn Fn(&Ray, &HitRecord) -> Option<Reflection> + Send + Sync>; 
 
 /// For creating materials with the lambertian diffuse lighting model, for use with perfectly diffuse objects.
 #[must_use]
@@ -35,7 +35,7 @@ pub fn make_lambertian_diffuse_brdf(albedo: Color) -> BRDF {
             }
         )
     };
-    Rc::new(brdf)
+    Arc::new(brdf)
 }
 
 /// For creating materials with the reflection characteristics of a metal.
@@ -53,5 +53,5 @@ pub fn make_metal_brdf(albedo: Color) -> BRDF {
             Reflection { reflected, attenuation }
         )
     };
-    Rc::new(brdf)
+    Arc::new(brdf)
 }

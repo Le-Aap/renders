@@ -111,7 +111,7 @@ impl Hittable for Sphere {
 
 /// A hittable collection of hittable items.
 pub struct Hittables {
-    objects: Vec<Box<dyn Hittable>>,
+    objects: Vec<Box<dyn Hittable + Send + Sync + 'static>>,
 }
 
 impl Hittables {
@@ -121,7 +121,7 @@ impl Hittables {
     /// Adds a hittable item into the collection
     pub fn add<T>(&mut self, object: T)
     where 
-        T: Hittable + 'static,
+        T: Hittable + Send + Sync + 'static,
     {
         self.objects.push(Box::new(object));
     }

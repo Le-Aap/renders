@@ -1,9 +1,7 @@
 use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3};
 use rand;
 use std::{
-    fmt::Display,
-    fs::File,
-    io::{BufWriter, prelude::*},
+    fmt::Display, fs::File, io::{BufWriter, prelude::*}, sync::Arc, sync::Mutex, thread
 };
 
 /// Struct used to build a camera.
@@ -37,6 +35,7 @@ pub struct CameraBuilder {
     viewport_height: f64,
     samples_per_pixel: u32,
     max_bounces: u32,
+    nr_threads: usize
 }
 
 impl CameraBuilder {
@@ -50,6 +49,7 @@ impl CameraBuilder {
             viewport_height: 2.0,
             samples_per_pixel: 10,
             max_bounces: 10,
+            nr_threads: 1,
         }
     }
 
@@ -63,6 +63,7 @@ impl CameraBuilder {
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 
@@ -76,6 +77,7 @@ impl CameraBuilder {
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 
@@ -89,6 +91,7 @@ impl CameraBuilder {
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 
@@ -102,6 +105,7 @@ impl CameraBuilder {
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 
@@ -115,6 +119,7 @@ impl CameraBuilder {
             viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 
@@ -128,6 +133,7 @@ impl CameraBuilder {
             viewport_height: self.viewport_height,
             samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 
@@ -141,6 +147,21 @@ impl CameraBuilder {
             viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces,
+            nr_threads: self.nr_threads,
+        }
+    }
+
+    #[must_use]
+    pub const fn set_nr_threads(self, nr_threads: usize) -> Self {
+        Self {
+            aspect_ratio: self.aspect_ratio,
+            image_width: self.image_width,
+            center: self.center,
+            focal_length: self.focal_length,
+            viewport_height: self.viewport_height,
+            samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
+            nr_threads,
         }
     }
 
@@ -178,6 +199,7 @@ impl CameraBuilder {
             pixel_samples_scale,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
         }
     }
 }
@@ -199,64 +221,98 @@ pub struct Camera {
     pixel_samples_scale: f64,
     samples_per_pixel: u32,
     max_bounces: u32,
+    nr_threads: usize,
 }
 
 impl Camera {
     /// Renders the cameras perspective in the world.
     /// # Panics
     /// Funcion may panic if any of the file opperations fail.
-    pub fn render<T: Hittable>(&self, world: &T) {
-        let mut pixels = PixelBuffer::new(
+    pub fn render<T: Hittable + Send + Sync + 'static>(&self, world: Arc<T>) {
+        let pixels = Arc::new(Mutex::new(PixelBuffer::new(
             self.image_width.try_into().expect(
                 "Creating pixel buffer failed: image wider than can be represented by usize",
             ),
             self.image_height.try_into().expect(
                 "Creating pixel buffer failed: image higher than can be represented by usize",
             ),
-        );
+        )));
 
-        let total_pixels = self.image_width * self.image_height;
-        
-        for (x, y) in &pixels {
-            let percentage = 100.0 * f64::from(x + y * self.image_width) / f64::from(total_pixels);
-            print!("\rRendering ({percentage:.1})%               ");
-            let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+        let mut render_threads = Vec::new();
 
-            for _ in 0..self.samples_per_pixel {
-                let camera_ray = self.get_ray(x, y);
-                pixel_color +=
-                    ray_color(&camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
-            }
+        let pixel_origin = self.pixel_origin;
+        let pixel_delta_u = self.pixel_delta_u;
+        let pixel_delta_v = self.pixel_delta_v;
+        let center = self.center;
 
-            pixel_color = pixel_color.to_gamma();
+        let get_ray = move |x, y| {
+            let offset = sample_square();
+            let pixel_sample = pixel_origin
+                + ((f64::from(x) + offset.x()) * pixel_delta_u)
+                + ((f64::from(y) + offset.y()) * pixel_delta_v);
 
-            pixels.set_pixel(
-                x.try_into().expect(
-                    "Writing to pixel buffer failed: x greater than can be represented by usize",
-                ),
-                y.try_into().expect(
-                    "Writing to pixel buffer failed: y greater than can be represented by usize",
-                ),
-                pixel_color,
-            );
+            let ray_direction = pixel_sample - center;
+            Ray::new(center, ray_direction)
+        };
+
+        for id in 0..self.nr_threads {
+            println!("Launching render thread {id}");
+            let nr_threads = self.nr_threads;
+            let samples_per_pixel = self.samples_per_pixel;
+            let max_bounces = self.max_bounces;
+            let pixel_samples_scale = self.pixel_samples_scale;
+            let world = world.clone();
+            let pixel_iter = {pixels.lock().unwrap().iter()};
+            let pixels = pixels.clone();
+            render_threads.push(thread::spawn(move || {
+                for (x, y) in pixel_iter {
+                    if (y as usize + id) % (&nr_threads + 1) != 0 {
+                        continue;
+                    }
+                    let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+
+                    for _ in 0..samples_per_pixel {
+                        let camera_ray = get_ray(x, y);
+                        pixel_color += ray_color(&camera_ray, max_bounces, world.as_ref()) * pixel_samples_scale;
+                    }
+                
+                    pixel_color = pixel_color.to_gamma();
+                
+                    pixels.lock().unwrap().set_pixel(
+                        x.try_into().expect(
+                            "Writing to pixel buffer failed: x greater than can be represented by usize",
+                        ),
+                        y.try_into().expect(
+                            "Writing to pixel buffer failed: y greater than can be represented by usize",
+                        ),
+                        pixel_color,
+                    );
+                }
+            }));
+            println!("Launched render thread {id}");
+        }
+
+        for thread in render_threads {
+            println!("Joined a thread!");
+            _ = thread.join();
         }
 
         let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
-        file.write_all(pixels.to_string().as_bytes())
+        file.write_all(pixels.lock().unwrap().to_string().as_bytes())
             .expect("Error while writing to file buffer.");
         file.flush().expect("Error while flushing file buffer.");
         print!("\rDone.                           ");
     }
 
-    fn get_ray(&self, i: u32, j: u32) -> Ray {
-        let offset = sample_square();
-        let pixel_sample = self.pixel_origin
-            + ((f64::from(i) + offset.x()) * self.pixel_delta_u)
-            + ((f64::from(j) + offset.y()) * self.pixel_delta_v);
+    // fn get_ray(&self, i: u32, j: u32) -> Ray {
+    //     let offset = sample_square();
+    //     let pixel_sample = self.pixel_origin
+    //         + ((f64::from(i) + offset.x()) * self.pixel_delta_u)
+    //         + ((f64::from(j) + offset.y()) * self.pixel_delta_v);
 
-        let ray_direction = pixel_sample - self.center;
-        Ray::new(self.center, ray_direction)
-    }
+    //     let ray_direction = pixel_sample - self.center;
+    //     Ray::new(self.center, ray_direction)
+    // }
 }
 
 fn sample_square() -> Vec3 {
@@ -288,7 +344,7 @@ fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
         )
 }
 
-/// A structure that provides a 2d interface to access pixels that are internally stored efficiently for the cache.
+/// A structure that provides a 2d interface to write pixel values.
 pub struct PixelBuffer {
     colors: Vec<Color>,
     width: usize,
