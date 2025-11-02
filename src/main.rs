@@ -15,9 +15,9 @@ fn main() {
 
     let camera = CameraBuilder::new()
         .set_aspect_ratio(16.0/9.0)
-        .set_image_width(2000)
-        .set_samples_per_pixel(1000)
-        .set_nr_threads(7)
+        .set_image_width(200)
+        .set_samples_per_pixel(400)
+        .set_nr_threads(10)
         .to_camera();
 
     camera.render(std::sync::Arc::new(world));
