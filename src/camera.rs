@@ -266,7 +266,7 @@ impl Camera {
             let pixels = pixels.clone();
             render_threads.push(thread::spawn(move || {
                 for (x, y) in pixel_iter {
-                    if (y as usize + id) % (&nr_threads + 1) != 0 {
+                    if (y as usize + id) % (&nr_threads) != 0 {
                         continue;
                     }
                     let mut pixel_color = Color::new(0.0, 0.0, 0.0);
