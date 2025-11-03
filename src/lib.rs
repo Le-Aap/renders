@@ -81,9 +81,9 @@ impl Hittable for Sphere {
         let oc = self.center - *ray.origin();
         let a = ray.direction().square_length();
         let h = dot(ray.direction(), &oc);
-        let c = oc.square_length() - self.radius * self.radius;
+        let c = self.radius.mul_add(-self.radius, oc.square_length());
 
-        let discriminant = h*h - a*c;
+        let discriminant = h.mul_add(h, -(a*c));
         if discriminant < 0.0 {
             return None;
         }

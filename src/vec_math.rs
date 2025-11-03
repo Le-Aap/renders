@@ -56,9 +56,9 @@ impl Vec3 {
     #[must_use]
     pub fn random_range(range: &Interval) -> Self {
         Self {
-            x: range.min() + (range.max() - range.min()) * rand::random::<f64>(),
-            y: range.min() + (range.max() - range.min()) * rand::random::<f64>(),
-            z: range.min() + (range.max() - range.min()) * rand::random::<f64>(),
+            x: (range.max() - range.min()).mul_add(rand::random::<f64>(), range.min()),
+            y: (range.max() - range.min()).mul_add(rand::random::<f64>(), range.min()),
+            z: (range.max() - range.min()).mul_add(rand::random::<f64>(), range.min()),
         }
     }
 
