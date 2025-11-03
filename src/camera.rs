@@ -1,7 +1,7 @@
-use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3};
+use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3, pixelbuffer::PixelBuffer};
 use rand;
 use std::{
-    fmt::Display, fs::File, io::{BufWriter, prelude::*}, sync::Arc, sync::Mutex, thread
+    fs::File, io::{BufWriter, prelude::*}, sync::{Arc, Mutex}, thread
 };
 
 /// Struct used to build a camera.
@@ -25,7 +25,8 @@ use std::{
 /// - `focal_length`: 1.0,
 /// - `viewport_height`: 2.0,
 /// - `samples_per_pixel`: 10,
-/// - `max_bounces`: 10
+/// - `max_bounces`: 10,
+/// - `nr_threads`: 1,
 #[derive(Debug, PartialEq)]
 pub struct CameraBuilder {
     aspect_ratio: f64,
@@ -210,6 +211,29 @@ impl Default for CameraBuilder {
     }
 }
 
+/// Represents a view into a world.
+/// Use `render` function to render the view as a ppm image.
+/// A camera can be built using the `camerabuilder` struct.
+/// # Example
+/// ```
+/// # use renders::{brdfs::{self, BRDF}, camera::CameraBuilder, colors::Color, vec_math::Vec3, Hittables, Sphere};
+/// let mut world = Hittables::new();
+///
+/// let ground_material: BRDF = brdfs::make_lambertian_diffuse_brdf(Color::new(0.8, 0.8, 0.0));
+/// let center_material: BRDF  = brdfs::make_lambertian_diffuse_brdf(Color::new(0.1, 0.2, 0.5));
+///  
+/// world.add(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0, ground_material));
+/// world.add(Sphere::new(Vec3::new(0.0, 0.0, -1.2), 0.5, center_material));
+///  
+/// let camera = CameraBuilder::new()
+///     .set_aspect_ratio(16.0/9.0)
+///     .set_image_width(400)
+///     .set_samples_per_pixel(300)
+///     .set_nr_threads(8)
+///     .to_camera();
+/// 
+/// // camera.render(&std::sync::Arc::new(world)); // call to render this view into the world.
+/// ```
 #[derive(Debug, PartialEq)]
 pub struct Camera {
     image_width: u32,
@@ -227,8 +251,8 @@ pub struct Camera {
 impl Camera {
     /// Renders the cameras perspective in the world.
     /// # Panics
-    /// Funcion may panic if any of the file opperations fail.
-    pub fn render<T: Hittable + Send + Sync + 'static>(&self, world: Arc<T>) {
+    /// Funcion may panic if any of the file opperations fail or if any of the render threads panic.
+    pub fn render<T: Hittable + Send + Sync + 'static>(&self, world: &Arc<T>) {
         let pixels = Arc::new(Mutex::new(PixelBuffer::new(
             self.image_width.try_into().expect(
                 "Creating pixel buffer failed: image wider than can be represented by usize",
@@ -238,81 +262,67 @@ impl Camera {
             ),
         )));
 
-        let mut render_threads = Vec::new();
-
-        let pixel_origin = self.pixel_origin;
-        let pixel_delta_u = self.pixel_delta_u;
-        let pixel_delta_v = self.pixel_delta_v;
-        let center = self.center;
-
-        let get_ray = move |x, y| {
-            let offset = sample_square();
-            let pixel_sample = pixel_origin
+        // Defining this function as a closure so that no reference to self ends up in a worker thread, rust does not allow that.
+        let get_ray = {
+            let pixel_origin = self.pixel_origin;
+            let pixel_delta_u = self.pixel_delta_u;
+            let pixel_delta_v = self.pixel_delta_v;
+            let center = self.center;
+            
+            move |x: u32, y: u32| {
+                let offset = sample_square();
+                let pixel_sample = pixel_origin
                 + ((f64::from(x) + offset.x()) * pixel_delta_u)
                 + ((f64::from(y) + offset.y()) * pixel_delta_v);
-
-            let ray_direction = pixel_sample - center;
-            Ray::new(center, ray_direction)
+                
+                let ray_direction = pixel_sample - center;
+                Ray::new(center, ray_direction)
+            }
         };
 
+        let mut render_threads = Vec::new();
+
         for id in 0..self.nr_threads {
-            println!("Launching render thread {id}");
+            // Copying these values here so that no reference to self ends up in the worker_thread closure as rust will not allow sending a closure with a reference to self accross threads.
             let nr_threads = self.nr_threads;
             let samples_per_pixel = self.samples_per_pixel;
             let max_bounces = self.max_bounces;
             let pixel_samples_scale = self.pixel_samples_scale;
             let world = world.clone();
-            let pixel_iter = {pixels.lock().unwrap().iter()};
+            let pixel_iter = {pixels.lock().expect("Unable to get lock on mutex!").iter().filter(move |(_,y)| {(*y + id).is_multiple_of(nr_threads)})};
             let pixels = pixels.clone();
-            render_threads.push(thread::spawn(move || {
+
+            let render_thread = move || {
                 for (x, y) in pixel_iter {
-                    if (y as usize + id) % (&nr_threads) != 0 {
-                        continue;
-                    }
                     let mut pixel_color = Color::new(0.0, 0.0, 0.0);
 
                     for _ in 0..samples_per_pixel {
-                        let camera_ray = get_ray(x, y);
+                        let camera_ray = get_ray(x.try_into().expect("Unable to cast usize to u32."), y.try_into().expect("Unable to cast usize to u32."));
                         pixel_color += ray_color(&camera_ray, max_bounces, world.as_ref()) * pixel_samples_scale;
                     }
                 
                     pixel_color = pixel_color.to_gamma();
                 
-                    pixels.lock().unwrap().set_pixel(
-                        x.try_into().expect(
-                            "Writing to pixel buffer failed: x greater than can be represented by usize",
-                        ),
-                        y.try_into().expect(
-                            "Writing to pixel buffer failed: y greater than can be represented by usize",
-                        ),
-                        pixel_color,
-                    );
+                    pixels.lock().expect("Unable to get lock on mutex!").set_pixel(x, y, pixel_color);
                 }
-            }));
+            };
+
+            render_threads.push(thread::spawn(render_thread));
             println!("Launched render thread {id}");
         }
 
-        for thread in render_threads {
-            println!("Joined a thread!");
+        for (i, thread) in render_threads.into_iter().enumerate() {
             _ = thread.join();
+            println!("Thread {i} finished rendering");
         }
 
+        println!("Writing to file");
         let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
-        file.write_all(pixels.lock().unwrap().to_string().as_bytes())
+        file.write_all(pixels.lock().expect("Unable to get lock on mutex!").to_string().as_bytes())
             .expect("Error while writing to file buffer.");
         file.flush().expect("Error while flushing file buffer.");
-        print!("\rDone.                           ");
+        println!("Done");
     }
-
-    // fn get_ray(&self, i: u32, j: u32) -> Ray {
-    //     let offset = sample_square();
-    //     let pixel_sample = self.pixel_origin
-    //         + ((f64::from(i) + offset.x()) * self.pixel_delta_u)
-    //         + ((f64::from(j) + offset.y()) * self.pixel_delta_v);
-
-    //     let ray_direction = pixel_sample - self.center;
-    //     Ray::new(self.center, ray_direction)
-    // }
 }
 
 fn sample_square() -> Vec3 {
@@ -342,134 +352,6 @@ fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
                 None => Color::new(0.0, 0.0, 0.0),
             },
         )
-}
-
-/// A structure that provides a 2d interface to write pixel values.
-pub struct PixelBuffer {
-    colors: Vec<Color>,
-    width: usize,
-    height: usize,
-}
-
-impl PixelBuffer {
-    /// Sets up a new color buffer with the bounds provided. All pixels are initialized to black.
-    #[must_use]
-    pub fn new(width: usize, height: usize) -> Self {
-        let size = width * height;
-        let mut colors = Vec::with_capacity(size);
-        let initial_color = Color::new(0.0, 0.0, 0.0);
-        for _ in 0..size {
-            colors.push(initial_color);
-        }
-
-        Self {
-            colors,
-            width,
-            height,
-        }
-    }
-
-    /// Set pixel at coordinate x, y. Both x and y are zero indexed
-    /// # Panics
-    /// Panics if x or y fail a bounds check
-    pub fn set_pixel(&mut self, x: usize, y: usize, color: Color) {
-        assert!(x < self.width);
-        assert!(y < self.height);
-        self.colors[y * self.width + x] = color;
-    }
-
-    /// Gets pixel at coordinate x, y. Both x and y are zero indexed.
-    /// # Panics
-    /// Panics if x is outside of the range [0, width>.
-    /// Panics if y is outside of the range [0, height>.
-    #[must_use]
-    pub fn get_pixel(&self, x: usize, y: usize) -> Color {
-        assert!(x < self.width);
-        assert!(y < self.height);
-        self.colors[y * self.width + x]
-    }
-
-    #[must_use]
-    pub fn iter(&self) -> PixelIterator {
-        <&Self as IntoIterator>::into_iter(self)
-    }
-}
-
-/// Displays pixel buffer as a ppm image
-impl Display for PixelBuffer {
-    /// Prints the pixel data stored in the pixel buffer as a .ppm image
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "P3\n{0} {1}\n255\n{2}",
-            self.width,
-            self.height,
-            self.colors
-                .iter()
-                .map(|color| { color.to_string() })
-                .collect::<String>()
-        )
-    }
-}
-
-impl IntoIterator for &PixelBuffer {
-    type Item = (u32, u32);
-
-    type IntoIter = PixelIterator;
-
-    /// Make an iterator over all pixel values.
-    fn into_iter(self) -> Self::IntoIter {
-        PixelIterator::new(self.width, self.height)
-    }
-}
-
-/// Iterator over the indices in a pixel buffer.
-/// # Example
-/// ```
-/// # use renders::camera::*;
-/// let pixels = PixelBuffer::new(5, 5);
-/// 
-/// let mut pixel_iter = pixels.iter();
-/// assert_eq!(pixel_iter.next(), Some((0, 0)));
-/// assert_eq!(pixel_iter.next(), Some((1, 0)));
-/// assert_eq!(pixel_iter.next(), Some((2, 0)));
-/// assert_eq!(pixel_iter.next(), Some((3, 0)));
-/// assert_eq!(pixel_iter.next(), Some((4, 0)));
-/// assert_eq!(pixel_iter.next(), Some((0, 1)));
-/// // etc.
-/// ```
-pub struct PixelIterator {
-    current: usize,
-    width: usize,
-    max: usize,
-}
-
-impl Iterator for PixelIterator {
-    type Item = (u32, u32);
-
-    /// Traverse pixels row by row.
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current < self.max {
-            let curr: u32 = self.current.try_into().expect("Error casting usize to u32");
-            let width: u32 = self.width.try_into().expect("Error casting usize to u32");
-
-            self.current += 1;
-
-            Some((curr % width, curr / width))
-        } else {
-            None
-        }
-    }
-}
-
-impl PixelIterator {
-    const fn new(width: usize, height: usize) -> Self {
-        Self {
-            current: 0,
-            max: width * height,
-            width,
-        }
-    }
 }
 
 #[cfg(test)]

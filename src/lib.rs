@@ -11,6 +11,7 @@ pub mod colors;
 pub mod ray_math;
 pub mod camera;
 pub mod brdfs;
+pub mod pixelbuffer;
 
 /// Calculates the color at the end of a ray.
 /// If a bad color value is produced, black is returned instead.

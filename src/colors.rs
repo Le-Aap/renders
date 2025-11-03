@@ -15,7 +15,9 @@ impl Color {
     /// # Example:
     /// ```
     /// use renders::colors::Color;
-    /// let _ = Color::new(0.0, 0.5, 1.0);
+    /// let a = Color::new(0.0, 0.5, 1.0);
+    /// let b = Color::new(-1.0, 0.5, 2.0);
+    /// assert_eq!(a,b);
     /// ```
     #[must_use]
     pub fn new(r:f64, g:f64, b:f64) -> Self {
@@ -27,8 +29,15 @@ impl Color {
         Self{vector}
     }
 
+    /// Converts a color from linear colorspace into the gamma colorspace.
+    /// # Example:
+    /// ```
+    /// use renders::colors::Color;
+    /// let a = Color::new(0.0, 0.5, 1.0);  // In linear color space.
+    /// let g = a.to_gamma();               // Same color in gamma space.
+    /// ```
     #[must_use]
-    pub fn to_gamma(&self) -> Self  {
+    pub fn to_gamma(self) -> Self  {
         Self {
             vector: Vec3::new(
                 linear_to_gamma(self.vector.x()),
@@ -138,7 +147,6 @@ fn linear_to_gamma(linear_component: f64) -> f64 {
     }
 }
 
-#[allow(clippy::should_panic_without_expect)]
 mod tests {
     #[allow(unused_imports)]
     use super::*;

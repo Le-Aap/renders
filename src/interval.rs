@@ -1,5 +1,5 @@
 #[derive(PartialEq, Debug)]
-/// Defines a real interval.
+/// Defines a interval on the real line.
 pub struct Interval {
     min: f64,
     max: f64,
