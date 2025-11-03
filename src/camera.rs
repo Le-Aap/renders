@@ -1,5 +1,6 @@
 use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3, pixelbuffer::PixelBuffer};
 use rand;
+use core::time;
 use std::{
     fs::File, io::{BufWriter, prelude::*}, sync::{Arc, Mutex}, thread
 };
@@ -253,14 +254,14 @@ impl Camera {
     /// # Panics
     /// Funcion may panic if any of the file opperations fail or if any of the render threads panic.
     pub fn render<T: Hittable + Send + Sync + 'static>(&self, world: &Arc<T>) {
-        let pixels = Arc::new(Mutex::new(PixelBuffer::new(
+        let output = Arc::new(Mutex::new((PixelBuffer::new(
             self.image_width.try_into().expect(
                 "Creating pixel buffer failed: image wider than can be represented by usize",
             ),
             self.image_height.try_into().expect(
                 "Creating pixel buffer failed: image higher than can be represented by usize",
             ),
-        )));
+        ), 0)));
 
         // Defining this function as a closure so that no reference to self ends up in a worker thread, rust does not allow that.
         let get_ray = {
@@ -283,14 +284,14 @@ impl Camera {
         let mut render_threads = Vec::new();
 
         for id in 0..self.nr_threads {
-            // Copying these values here so that no reference to self ends up in the worker_thread closure as rust will not allow sending a closure with a reference to self accross threads.
+            // Copying these values here so that no reference to self ends up in the render_thread closure as rust will not allow sending a closure with a reference to self accross threads.
             let nr_threads = self.nr_threads;
             let samples_per_pixel = self.samples_per_pixel;
             let max_bounces = self.max_bounces;
             let pixel_samples_scale = self.pixel_samples_scale;
             let world = world.clone();
-            let pixel_iter = {pixels.lock().expect("Unable to get lock on mutex!").iter().filter(move |(_,y)| {(*y + id).is_multiple_of(nr_threads)})};
-            let pixels = pixels.clone();
+            let pixel_iter = {output.lock().expect("Unable to get lock on mutex!").0.iter().filter(move |(_,y)| {(*y + id).is_multiple_of(nr_threads)})};
+            let pixels = output.clone();
 
             let render_thread = move || {
                 for (x, y) in pixel_iter {
@@ -303,25 +304,35 @@ impl Camera {
                 
                     pixel_color = pixel_color.to_gamma();
                 
-                    pixels.lock().expect("Unable to get lock on mutex!").set_pixel(x, y, pixel_color);
+                    let mut out = pixels.lock().expect("Unable to get lock on mutex!");
+                    out.0.set_pixel(x, y, pixel_color);
+                    out.1 += 1;
                 }
             };
 
             render_threads.push(thread::spawn(render_thread));
-            println!("Launched render thread {id}");
+        }
+        
+        loop {
+            if render_threads.iter().all(|thread| {thread.is_finished()}) {
+                break;
+            }
+            let progress = {output.lock().expect("Unable to get lock on mutex").1};
+            let progress: u32 = (progress as f64 / (self.image_height * self.image_width) as f64 * 100.0) as u32;
+            print!("\rRendering ({progress}%)        ");
+            thread::sleep(time::Duration::from_secs_f32(0.01));
         }
 
-        for (i, thread) in render_threads.into_iter().enumerate() {
+        for thread in render_threads {
             _ = thread.join();
-            println!("Thread {i} finished rendering");
         }
 
-        println!("Writing to file");
+        print!("\rWriting to file      ");
         let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
-        file.write_all(pixels.lock().expect("Unable to get lock on mutex!").to_string().as_bytes())
+        file.write_all(output.lock().expect("Unable to get lock on mutex!").0.to_string().as_bytes())
             .expect("Error while writing to file buffer.");
         file.flush().expect("Error while flushing file buffer.");
-        println!("Done");
+        println!("\rDone                 ");
     }
 }
 
