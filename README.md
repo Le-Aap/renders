@@ -6,12 +6,14 @@ In addition to this I have implemented multithreading.
 
 ## To run with Nix
 To run RendeRS when using the Nix package manager on Linux/WSL:
-Clone RendeRS and open the folder in a shell, in the shell run `nix develop` to install all of the requirements needed to build RendeRS. The versions installed are the same used for testing and so are guaranteed to work.
+Clone RendeRS and open the project root in a shell. In the shell run `nix develop` to install all of the requirements needed to build RendeRS. 
+The versions installed are the same used for testing and so are guaranteed to work.
 After running `nix develop` run `cargo run -r` to compile and run RendeRS.
 
 ## To run without Nix
 To run RendeRS when not using the Nix package manager, make sure you have a version of [the rust toolchain installed](https://rust-lang.org/tools/install/) installed.
-Then run `cargo run -r`
+
+Clone RendeRS and open the project root in a shell, then run `cargo run -r` to compile and run RendeRS.
 
 ## Todo:
 My goal is to extend this implementation with:
