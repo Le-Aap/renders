@@ -1,4 +1,5 @@
 # RendeRS
+![Render produced by RendeRS](https://github.com/Le-Aap/renders/blob/master/image.png)
 RendeRS is primarily a rust implementation of the raytracer described in the book [_Ray Tracing in One Weekend_](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
 
 So far implemented from the book is chapter 1 - 10.
