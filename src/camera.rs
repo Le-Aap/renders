@@ -1,4 +1,4 @@
-use crate::{Hittable, colors::Color, interval::Interval, ray_math::Ray, vec_math::Vec3, pixelbuffer::PixelBuffer};
+use crate::{Hittable, colors::Color, interval::Interval, pixelbuffer::PixelBuffer, ray_math::Ray, vec_math::{Vec3, cross, unit_vector}};
 use rand;
 use core::time;
 use std::{
@@ -22,22 +22,27 @@ use std::{
 /// if a different value is not set with one of the functions the following defaults are used:
 /// - `aspect_ratio`: 1.0,
 /// - `image_width`: 100,
-/// - `center`: (0.0, 0.0, 0.0),  (Vec3)
+/// - `camera_up`: (0.0, 1.0, 0.0),  (Vec3)
 /// - `focal_length`: 1.0,
 /// - `viewport_height`: 2.0,
 /// - `samples_per_pixel`: 10,
 /// - `max_bounces`: 10,
 /// - `nr_threads`: 1,
+/// - `vfov`: 50.0,
+/// - `look_from`: (0.0, 0.0, 0.0)
+/// - `look_at`: (0.0, 0.0, -1.0)
 #[derive(Debug, PartialEq)]
 pub struct CameraBuilder {
     aspect_ratio: f64,
     image_width: u32,
-    center: Vec3,
+    camera_up: Vec3,
     focal_length: f64,
-    viewport_height: f64,
     samples_per_pixel: u32,
     max_bounces: u32,
-    nr_threads: usize
+    nr_threads: usize,
+    look_from: Vec3,
+    look_at: Vec3,
+    vfov: f64,
 }
 
 impl CameraBuilder {
@@ -46,12 +51,14 @@ impl CameraBuilder {
         Self {
             aspect_ratio: 1.0,
             image_width: 100,
-            center: Vec3::new(0.0, 0.0, 0.0),
+            camera_up: Vec3::new(0.0, 1.0, 0.0),
             focal_length: 1.0,
-            viewport_height: 2.0,
             samples_per_pixel: 10,
             max_bounces: 10,
             nr_threads: 1,
+            vfov: 50.0,
+            look_from: Vec3::new(0.0, 0.0, 0.0),
+            look_at: Vec3::new(0.0, 0.0, -1.0),
         }
     }
 
@@ -60,12 +67,14 @@ impl CameraBuilder {
         Self {
             aspect_ratio,
             image_width: self.image_width,
-            center: self.center,
+            camera_up: self.camera_up,
             focal_length: self.focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
             nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
         }
     }
 
@@ -74,26 +83,30 @@ impl CameraBuilder {
         Self {
             aspect_ratio: self.aspect_ratio,
             image_width,
-            center: self.center,
+            camera_up: self.camera_up,
             focal_length: self.focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
             nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
         }
     }
 
     #[must_use]
-    pub const fn set_camera_center(self, center: Vec3) -> Self {
+    pub const fn set_camera_up(self, vup: Vec3) -> Self {
         Self {
             aspect_ratio: self.aspect_ratio,
             image_width: self.image_width,
-            center,
+            camera_up: vup,
             focal_length: self.focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
             nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
         }
     }
 
@@ -102,26 +115,14 @@ impl CameraBuilder {
         Self {
             aspect_ratio: self.aspect_ratio,
             image_width: self.image_width,
-            center: self.center,
+            camera_up: self.camera_up,
             focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
             nr_threads: self.nr_threads,
-        }
-    }
-
-    #[must_use]
-    pub const fn set_viewport_height(self, viewport_height: f64) -> Self {
-        Self {
-            aspect_ratio: self.aspect_ratio,
-            image_width: self.image_width,
-            center: self.center,
-            focal_length: self.focal_length,
-            viewport_height,
-            samples_per_pixel: self.samples_per_pixel,
-            max_bounces: self.max_bounces,
-            nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
         }
     }
 
@@ -130,12 +131,14 @@ impl CameraBuilder {
         Self {
             aspect_ratio: self.aspect_ratio,
             image_width: self.image_width,
-            center: self.center,
+            camera_up: self.camera_up,
             focal_length: self.focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel,
             max_bounces: self.max_bounces,
             nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
         }
     }
 
@@ -144,12 +147,14 @@ impl CameraBuilder {
         Self {
             aspect_ratio: self.aspect_ratio,
             image_width: self.image_width,
-            center: self.center,
+            camera_up: self.camera_up,
             focal_length: self.focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces,
             nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
         }
     }
 
@@ -158,12 +163,62 @@ impl CameraBuilder {
         Self {
             aspect_ratio: self.aspect_ratio,
             image_width: self.image_width,
-            center: self.center,
+            camera_up: self.camera_up,
             focal_length: self.focal_length,
-            viewport_height: self.viewport_height,
             samples_per_pixel: self.samples_per_pixel,
             max_bounces: self.max_bounces,
             nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
+        }
+    }
+
+    #[must_use]
+    pub const fn set_vfov(self, vfov: f64) -> Self {
+        Self {
+            aspect_ratio: self.aspect_ratio,
+            image_width: self.image_width,
+            camera_up: self.camera_up,
+            focal_length: self.focal_length,
+            samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
+            vfov,
+            look_at: self.look_at,
+            look_from: self.look_from,
+        }
+    }
+
+    #[must_use]
+    pub const fn set_look_at(self, look_at: Vec3) -> Self {
+        Self {
+            aspect_ratio: self.aspect_ratio,
+            image_width: self.image_width,
+            camera_up: self.camera_up,
+            focal_length: self.focal_length,
+            samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at,
+            look_from: self.look_from,
+        }
+    }
+
+    #[must_use]
+    pub const fn set_look_from(self, look_from: Vec3) -> Self {
+        Self {
+            aspect_ratio: self.aspect_ratio,
+            image_width: self.image_width,
+            camera_up: self.camera_up,
+            focal_length: self.focal_length,
+            samples_per_pixel: self.samples_per_pixel,
+            max_bounces: self.max_bounces,
+            nr_threads: self.nr_threads,
+            vfov: self.vfov,
+            look_at: self.look_at,
+            look_from,
         }
     }
 
@@ -174,27 +229,33 @@ impl CameraBuilder {
         #[allow(clippy::cast_sign_loss)]
         let image_height = ((f64::from(self.image_width) / self.aspect_ratio) as u32).max(1);
 
-        let viewport_height = self.viewport_height;
-        let viewport_width = viewport_height * (f64::from(image_width) / f64::from(image_height));
+        let pixel_samples_scale = 1.0 / f64::from(self.samples_per_pixel);
+        
+        let center = self.look_from;
 
-        let viewport_u = Vec3::new(viewport_width, 0.0, 0.0);
-        let viewport_v = Vec3::new(0.0, -viewport_height, 0.0);
+        let focal_length = (self.look_at - self.look_from).length();
+        let theta = f64::to_radians(self.vfov);
+        let h = f64::tan(theta/2.0);
+        let viewport_height = 2.0 * h * focal_length;
+        let viewport_width = viewport_height * f64::from(image_width) / f64::from(image_height);
+
+        let w = unit_vector(self.look_from - self.look_at);
+        let u = unit_vector(cross(self.camera_up, w));
+        let v = cross(w, u);
+
+        let viewport_u = viewport_width * u;
+        let viewport_v = viewport_height * -v;
 
         let pixel_delta_u = viewport_u / f64::from(image_width);
         let pixel_delta_v = viewport_v / f64::from(image_height);
 
-        let viewport_upper_left = self.center
-            - Vec3::new(0.0, 0.0, self.focal_length)
-            - viewport_u / 2.0
-            - viewport_v / 2.0;
+        let viewport_upper_left = center - (focal_length * w) - (viewport_u / 2.0) - (viewport_v / 2.0);
         let pixel_origin = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
-
-        let pixel_samples_scale = 1.0 / f64::from(self.samples_per_pixel);
-
+        
         Camera {
             image_width,
             image_height,
-            center: self.center,
+            center,
             pixel_origin,
             pixel_delta_u,
             pixel_delta_v,
@@ -374,15 +435,13 @@ mod tests {
     fn test_camera_creation() {
         let camera_a = CameraBuilder::new()
             .set_aspect_ratio(1.0)
-            .set_camera_center(Vec3::new(0.0, 0.0, 0.0))
+            .set_camera_up(Vec3::new(0.0, 0.0, 0.0))
             .set_focal_length(1.0)
             .set_image_width(100)
-            .set_viewport_height(2.0)
             .to_camera();
 
         let camera_b = CameraBuilder::new()
-            .set_viewport_height(2.0)
-            .set_camera_center(Vec3::new(0.0, 0.0, 0.0))
+            .set_camera_up(Vec3::new(0.0, 0.0, 0.0))
             .set_aspect_ratio(1.0)
             .set_image_width(100)
             .set_focal_length(1.0)
@@ -393,10 +452,9 @@ mod tests {
 
         let camera_c = CameraBuilder::new()
             .set_aspect_ratio(2.0)
-            .set_camera_center(Vec3::new(3.0, 0.0, 4.0))
+            .set_camera_up(Vec3::new(3.0, 0.0, 4.0))
             .set_focal_length(1.5)
             .set_image_width(2_000_000)
-            .set_viewport_height(12.0)
             .to_camera();
 
         assert_ne!(camera_a, camera_c);
