@@ -16,8 +16,8 @@ pub mod pixelbuffer;
 /// Calculates the color at the end of a ray.
 /// If a bad color value is produced, black is returned instead.
 #[must_use]
-pub fn ray_color<T: Hittable>(ray: &Ray, world: &T) -> Color {
-    world.hit(ray, &Interval::new(0.0, f64::INFINITY)).map_or_else(
+pub fn ray_color<T: Hittable>(ray: Ray, world: &T) -> Color {
+    world.hit(ray, Interval::new(0.0, f64::INFINITY)).map_or_else(
     || {
         let a = 0.5 * (ray.direction().normalized().y() + 1.0);
         ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
@@ -42,7 +42,7 @@ pub struct HitRecord {
 /// Trait to be implemented for all things that can be hit by a ray.
 pub trait Hittable {
     /// Intersects the ray with the surface and returns the hit if there was one.
-    fn hit(&self, ray: &Ray, ray_t: &Interval) -> Option<HitRecord>;
+    fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord>;
 }
 
 /// Represents a sphere with a surface. 
@@ -67,20 +67,20 @@ impl Sphere {
 /// # Panics
 /// Panics if `outward_normal` is not of unit length.
 #[must_use]
-pub fn calculate_face_normal(ray: &Ray, outward_normal: &Vec3) -> (bool, Vec3) {
+pub fn calculate_face_normal(ray: Ray, outward_normal: Vec3) -> (bool, Vec3) {
     assert!((outward_normal.square_length() - 1.0).abs() <= 0.0001);
 
     let front_face = dot(ray.direction(), outward_normal) < 0.0;
-    let normal = if front_face {*outward_normal} else {-1.0 * *outward_normal};
+    let normal = if front_face {outward_normal} else {-1.0 * outward_normal};
     (front_face, normal)
 }
 
 impl Hittable for Sphere {
     #[allow(clippy::suspicious_operation_groupings)]
-    fn hit(&self, ray: &Ray, ray_t: &Interval) -> Option<HitRecord> {
-        let oc = self.center - *ray.origin();
+    fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord> {
+        let oc = self.center - ray.origin();
         let a = ray.direction().square_length();
-        let h = dot(ray.direction(), &oc);
+        let h = dot(ray.direction(), oc);
         let c = self.radius.mul_add(-self.radius, oc.square_length());
 
         let discriminant = h.mul_add(h, -(a*c));
@@ -99,7 +99,7 @@ impl Hittable for Sphere {
         }
 
         let hit_point = ray.at(root);
-        let (front_face, normal) = calculate_face_normal(ray, &((hit_point - self.center) / self.radius));
+        let (front_face, normal) = calculate_face_normal(ray, (hit_point - self.center) / self.radius);
 
         Some(HitRecord {
             t: root,
@@ -143,7 +143,7 @@ impl Default for Hittables {
 
 impl Hittable for Hittables {
     /// Returns the nearest hit to any object in the collection
-    fn hit(&self, ray: &Ray, ray_t: &Interval) -> Option<HitRecord> {
+    fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord> {
         let mut current = None;
 
         for hittable in &self.objects {

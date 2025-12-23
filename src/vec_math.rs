@@ -76,9 +76,9 @@ impl Vec3 {
 
     /// Returns a random vector that lies on the unit hemisphere that surrounds the normal vector.
     #[must_use]
-    pub fn random_on_hemisphere(normal: &Self) -> Self{
+    pub fn random_on_hemisphere(normal: Self) -> Self{
         let on_unit_sphere = Self::random_unit_vector();
-        if dot(&on_unit_sphere, normal) > 0.0 {
+        if dot(on_unit_sphere, normal) > 0.0 {
             on_unit_sphere
         } else {
             -1.0 * on_unit_sphere
@@ -205,36 +205,55 @@ impl ops::Div<f64> for Vec3 {
     }
 }
 
+impl ops::Neg for Vec3 {
+    type Output = Self;
+    
+    fn neg(self) -> Self::Output {
+        -1.0 * self
+    }
+}
+
 /// Returns a unit vector with same direction as v. Identical to `v.normalized()`.
 #[must_use]
-pub fn unit_vector(v:&Vec3) -> Vec3 {
+pub fn unit_vector(v: Vec3) -> Vec3 {
     v.normalized()
 }
 
 /// Returns the dot product of a and b.
 #[must_use]
-pub fn dot(a: &Vec3, b: &Vec3) -> f64 {
+pub fn dot(a: Vec3, b: Vec3) -> f64 {
     a.x.mul_add(b.x,
     a.y.mul_add(b.y, 
     a.z * b.z
     ))
 }
 
-/// Returns the reflection of a, with normal vector n. NOTE: assumes n is normalized.
+/// Returns the reflection of `a`, with normal vector `n`. NOTE: assumes `n` and `a` are normalized.
 #[must_use]
-pub fn reflect(a: &Vec3, n: &Vec3) -> Vec3 {
-    *a - 2.0 * dot(a, n) * *n
+pub fn reflect(a: Vec3, n: Vec3) -> Vec3 {
+    a - 2.0 * dot(a, n) * n
+}
+
+/// Returns the refraction of `a`, according to normal vector `n`. NOTE: assumes `a` and `n` are normalized.
+/// `refraction_constant` is the refractive indices of the two 
+#[must_use]
+pub fn refract(a: Vec3, n: Vec3, refraction_constant: f64) -> Vec3 {
+    let cos_theta = dot(-1.0 * a, n).min(1.0);
+    let out_u = refraction_constant * (a + cos_theta * n);
+    let out_v = -f64::sqrt(f64::abs(1.0 - out_u.square_length())) * n;
+    out_u + out_v
 }
 
 /// Returns the cross product of a and b.
 #[must_use]
-pub fn cross(a: &Vec3, b: &Vec3) -> Vec3 {
+pub fn cross(a: Vec3, b: Vec3) -> Vec3 {
     Vec3 {
         x: a.y.mul_add(b.z, -(a.z * b.y)),
         y: a.z.mul_add(b.x, -(a.x * b.z)),
         z: a.x.mul_add(b.y, -(a.y * b.x)),
     }
 }
+
 
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
@@ -286,7 +305,7 @@ mod tests {
     fn normalization_test() {
         let a = Vec3::new(2.0, 3.0, -1.0);
     
-        assert_eq!(a.normalized(), unit_vector(&a));
+        assert_eq!(a.normalized(), unit_vector(a));
         assert_eq!(a.normalized(), a/a.length());
     }
 
@@ -296,9 +315,9 @@ mod tests {
         let b = Vec3::new(0.0, 1.0, 0.0);
         let c = Vec3::new(-1.0, 0.0, 0.0);
     
-        assert_eq!(dot(&a, &b), 0.0);
-        assert_eq!(dot(&a, &c), -1.0);
-        assert_eq!(dot(&a, &a), 1.0);
+        assert_eq!(dot(a, b), 0.0);
+        assert_eq!(dot(a, c), -1.0);
+        assert_eq!(dot(a, a), 1.0);
     }
 
     #[test]
@@ -306,6 +325,6 @@ mod tests {
         let a = Vec3::new(2.0, 3.0, 4.0);
         let b = Vec3::new(5.0, 6.0, 7.0);
     
-        assert_eq!(cross(&a, &b), Vec3::new(-3.0, 6.0, -3.0));
+        assert_eq!(cross(a, b), Vec3::new(-3.0, 6.0, -3.0));
     }
 }

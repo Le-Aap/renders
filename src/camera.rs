@@ -299,7 +299,7 @@ impl Camera {
 
                     for _ in 0..samples_per_pixel {
                         let camera_ray = get_ray(x.try_into().expect("Unable to cast usize to u32."), y.try_into().expect("Unable to cast usize to u32."));
-                        pixel_color += ray_color(&camera_ray, max_bounces, world.as_ref()) * pixel_samples_scale;
+                        pixel_color += ray_color(camera_ray, max_bounces, world.as_ref()) * pixel_samples_scale;
                     }
                 
                     pixel_color = pixel_color.to_gamma();
@@ -313,12 +313,16 @@ impl Camera {
             render_threads.push(thread::spawn(render_thread));
         }
         
+        
         loop {
             if render_threads.iter().all(|thread| {thread.is_finished()}) {
                 break;
             }
             let progress = {output.lock().expect("Unable to get lock on mutex").1};
-            let progress: u32 = (progress as f64 / (self.image_height * self.image_width) as f64 * 100.0) as u32;
+
+            #[allow(clippy::cast_possible_truncation)]
+            #[allow(clippy::cast_sign_loss)]
+            let progress: u32 = (f64::from(progress) / f64::from(self.image_height * self.image_width) * 100.0) as u32;
             print!("\rRendering ({progress}%)        ");
             thread::sleep(time::Duration::from_secs_f32(0.01));
         }
@@ -344,24 +348,22 @@ fn sample_square() -> Vec3 {
     )
 }
 
-fn ray_color<T: Hittable>(ray: &Ray, depth: u32, world: &T) -> Color {
+fn ray_color<T: Hittable>(ray: Ray, depth: u32, world: &T) -> Color {
     if depth == 0 {
         return Color::new(0.0, 0.0, 0.0);
     }
 
     world
-        .hit(ray, &Interval::new(0.00001, f64::INFINITY))
+        .hit(ray, Interval::new(0.00001, f64::INFINITY))
         .map_or_else(
             || {
                 let a = 0.5 * (ray.direction().normalized().y() + 1.0);
                 ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
             },
-            |hit| match (hit.brdf)(ray, &hit) {
-                Some(reflection) => {
-                    reflection.attenuation * ray_color(&reflection.reflected, depth - 1, world)
-                }
-                None => Color::new(0.0, 0.0, 0.0),
-            },
+            |hit| (hit.brdf)(ray, &hit).map_or_else(
+                || Color::new(0.0, 0.0, 0.0),
+                |reflection| reflection.attenuation * ray_color(reflection.reflected, depth - 1, world)
+            )
         )
 }
 

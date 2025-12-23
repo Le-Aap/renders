@@ -1,4 +1,4 @@
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 /// Defines a interval on the real line.
 pub struct Interval {
     min: f64,
