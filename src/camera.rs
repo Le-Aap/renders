@@ -1,6 +1,5 @@
 use crate::{Hittable, colors::Color, interval::Interval, pixelbuffer::PixelBuffer, ray_math::Ray, vec_math::{Vec3, cross, unit_vector}};
 use rand;
-use core::time;
 use std::{
     fs::File, io::{BufWriter, prelude::*}, sync::{Arc, Mutex}, thread
 };
@@ -314,90 +313,56 @@ impl Camera {
     /// Renders the cameras perspective in the world.
     /// # Panics
     /// Funcion may panic if any of the file opperations fail or if any of the render threads panic.
-    pub fn render<T: Hittable + Send + Sync + 'static>(&self, world: &Arc<T>) {
-        let output = Arc::new(Mutex::new((PixelBuffer::new(
+    pub fn render<T>(&self, world: &T)
+    where
+        T: Send + Sync + Hittable
+    {
+        let output = Arc::new(Mutex::new(PixelBuffer::new(
             self.image_width.try_into().expect(
                 "Creating pixel buffer failed: image wider than can be represented by usize",
             ),
             self.image_height.try_into().expect(
                 "Creating pixel buffer failed: image higher than can be represented by usize",
             ),
-        ), 0)));
+        )));
 
-        // Defining this function as a closure so that no reference to self ends up in a worker thread, rust does not allow that.
-        let get_ray = {
-            let pixel_origin = self.pixel_origin;
-            let pixel_delta_u = self.pixel_delta_u;
-            let pixel_delta_v = self.pixel_delta_v;
-            let center = self.center;
-            
-            move |x: u32, y: u32| {
-                let offset = sample_square();
-                let pixel_sample = pixel_origin
-                + ((f64::from(x) + offset.x()) * pixel_delta_u)
-                + ((f64::from(y) + offset.y()) * pixel_delta_v);
-                
-                let ray_direction = pixel_sample - center;
-                Ray::new(center, ray_direction)
-            }
-        };
+        thread::scope(|s| {
+            for id in 0..self.nr_threads {
+                let output = output.clone();
+                s.spawn(move || {
+                    let pixel_iter = {output.lock().expect("Should be able to get lock on mutex.").iter().filter(|(_,y)|{(*y + id).is_multiple_of(self.nr_threads)})};
+                    for (x, y) in pixel_iter {
+                        let mut pixel_color = Color::new(0.0, 0.0, 0.0);
 
-        let mut render_threads = Vec::new();
+                        for _ in 0..self.samples_per_pixel {
+                            let camera_ray = self.get_ray(x.try_into().expect("An image with a width representable as a usize but not as a u32 is almost impossible."), y.try_into().expect("An image with height representable as a usize but not as a u32 is almost impossible."));
+                            pixel_color += ray_color(camera_ray, self.max_bounces, world) * self.pixel_samples_scale;
+                        }
 
-        for id in 0..self.nr_threads {
-            // Copying these values here so that no reference to self ends up in the render_thread closure as rust will not allow sending a closure with a reference to self accross threads.
-            let nr_threads = self.nr_threads;
-            let samples_per_pixel = self.samples_per_pixel;
-            let max_bounces = self.max_bounces;
-            let pixel_samples_scale = self.pixel_samples_scale;
-            let world = world.clone();
-            let pixel_iter = {output.lock().expect("Unable to get lock on mutex!").0.iter().filter(move |(_,y)| {(*y + id).is_multiple_of(nr_threads)})};
-            let pixels = output.clone();
+                        pixel_color = pixel_color.to_gamma();
 
-            let render_thread = move || {
-                for (x, y) in pixel_iter {
-                    let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-
-                    for _ in 0..samples_per_pixel {
-                        let camera_ray = get_ray(x.try_into().expect("Unable to cast usize to u32."), y.try_into().expect("Unable to cast usize to u32."));
-                        pixel_color += ray_color(camera_ray, max_bounces, world.as_ref()) * pixel_samples_scale;
+                        let mut out = output.lock().expect("This lock should be available in a reasonable time.");
+                        out.set_pixel(x, y, pixel_color);
                     }
-                
-                    pixel_color = pixel_color.to_gamma();
-                
-                    let mut out = pixels.lock().expect("Unable to get lock on mutex!");
-                    out.0.set_pixel(x, y, pixel_color);
-                    out.1 += 1;
-                }
-            };
-
-            render_threads.push(thread::spawn(render_thread));
-        }
-        
-        
-        loop {
-            if render_threads.iter().all(|thread| {thread.is_finished()}) {
-                break;
+                });
             }
-            let progress = {output.lock().expect("Unable to get lock on mutex").1};
-
-            #[allow(clippy::cast_possible_truncation)]
-            #[allow(clippy::cast_sign_loss)]
-            let progress: u32 = (f64::from(progress) / f64::from(self.image_height * self.image_width) * 100.0) as u32;
-            print!("\rRendering ({progress}%)        ");
-            thread::sleep(time::Duration::from_secs_f32(0.01));
-        }
-
-        for thread in render_threads {
-            _ = thread.join();
-        }
+        });
 
         print!("\rWriting to file      ");
-        let mut file = BufWriter::new(File::create("image.ppm").expect("Error creating file."));
-        file.write_all(output.lock().expect("Unable to get lock on mutex!").0.to_string().as_bytes())
-            .expect("Error while writing to file buffer.");
-        file.flush().expect("Error while flushing file buffer.");
+        let mut file = BufWriter::new(File::create("image.ppm").expect("We should be able to create this file."));
+        file.write_all(output.lock().expect("We should be the only thread with access to this lock so this should always succeed.").to_string().as_bytes())
+            .expect("We should be able to write to this file.");
+        file.flush().expect("We should be able to write to this file.");
         println!("\rDone                 ");
+    }
+    fn get_ray(&self, x: u32, y: u32) -> Ray {
+        let offset = sample_square();
+        let pixel_sample = self.pixel_origin
+            + ((f64::from(x) + offset.x()) * self.pixel_delta_u)
+            + ((f64::from(y) + offset.y()) * self.pixel_delta_v);
+                    
+        let ray_direction = pixel_sample - self.center;
+        Ray::new(self.center, ray_direction)
     }
 }
 
