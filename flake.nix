@@ -20,9 +20,7 @@
         devShell = mkShell {
           buildInputs = [
             bacon
-            (rust-bin.stable.latest.default.override {
-              extensions = [ "rust-src" ];
-            })
+            rust-bin.stable.latest.default
           ];
         };
       }
