@@ -45,8 +45,20 @@ impl PixelBuffer {
 
     /// Iterates over pixels left to right and then top to bottom.
     #[must_use]
-    pub fn iter(&self) -> PixelIterator {
-        <&Self as IntoIterator>::into_iter(self)
+    pub fn iter(&self) -> PixelIterator<'_> {
+        PixelIterator::new(self.colors.iter(), self.width)
+    }
+
+    /// Iterates over just the pixel locations, from left to right and top to bottom.
+    #[must_use]
+    pub fn iter_locations(&self) -> PixelLocationIterator {
+        PixelLocationIterator::new(self.width, self.height)
+    }
+    
+    /// Iterates over pixel left to right and then top to bottom.
+    #[must_use]
+    pub fn iter_mut(&mut self) -> PixelIteratorMut<'_> {
+        PixelIteratorMut::new(self.colors.iter_mut(), self.width)
     }
 }
 
@@ -67,65 +79,76 @@ impl Display for PixelBuffer {
     }
 }
 
-impl IntoIterator for &PixelBuffer {
-    type Item = (usize, usize);
-
-    type IntoIter = PixelIterator;
-
-    /// Make an iterator over all pixel values.
-    fn into_iter(self) -> Self::IntoIter {
-        PixelIterator::new(self.width, self.height)
-    }
-}
-
-/// Iterator over the indices in a pixel buffer.
-/// # Example
-/// ```
-/// # use renders::pixelbuffer::*;
-/// let pixels = PixelBuffer::new(5, 5);
-/// 
-/// let mut pixel_iter = pixels.iter();
-/// assert_eq!(pixel_iter.next(), Some((0, 0)));
-/// assert_eq!(pixel_iter.next(), Some((1, 0)));
-/// assert_eq!(pixel_iter.next(), Some((2, 0)));
-/// assert_eq!(pixel_iter.next(), Some((3, 0)));
-/// assert_eq!(pixel_iter.next(), Some((4, 0)));
-/// assert_eq!(pixel_iter.next(), Some((0, 1)));
-/// // etc.
-/// ```
-pub struct PixelIterator {
-    current: usize,
+pub struct PixelLocationIterator {
+    iter: core::ops::Range<usize>,
     width: usize,
-    max: usize,
 }
 
-impl Iterator for PixelIterator {
+impl PixelLocationIterator {
+    #[must_use]
+    fn new(width: usize, height: usize) -> Self {
+        Self { iter: 0..(width * height), width }
+    }
+}
+
+impl Iterator for PixelLocationIterator {
     type Item = (usize, usize);
 
-    /// Traverse pixels row by row.
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current < self.max {
-            let curr: usize = self.current;
-            let width: usize = self.width;
-
-            self.current += 1;
-
-            Some((curr % width, curr / width))
-        } else {
-            None
-        }
+        self.iter.next().map(|i| {
+            let y = i / self.width;
+            let x = i % self.width;
+            (x, y)
+        })
     }
 }
 
-impl PixelIterator {
-    const fn new(width: usize, height: usize) -> Self {
-        Self {
-            current: 0,
-            max: width * height,
-            width,
-        }
+pub struct PixelIterator<'a> {
+    iter: std::iter::Enumerate<std::slice::Iter<'a, Color>>,
+    width: usize,
+}
+
+impl<'a> PixelIterator<'a> {
+    fn new(iter: std::slice::Iter<'a, Color>, width: usize) -> Self {
+        Self { iter: iter.enumerate(), width }
     }
 }
+
+impl<'a> Iterator for PixelIterator<'a> {
+    type Item = (Color, usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(i, color)| {
+            let y = i / self.width;
+            let x = i % self.width;
+            (*color, x, y)
+        })
+    }
+}
+
+pub struct PixelIteratorMut<'a> {
+    iter: std::iter::Enumerate<std::slice::IterMut<'a, Color>>,
+    width: usize,
+}
+
+impl<'a> PixelIteratorMut<'a> {
+    fn new(iter: std::slice::IterMut<'a, Color>, width: usize) -> Self {
+        Self { iter: iter.enumerate(), width }
+    }
+}
+
+impl<'a> Iterator for PixelIteratorMut<'a>{
+    type Item = (&'a mut Color, usize, usize);
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(i, color)| {
+            let y = i / self.width;
+            let x = i % self.width;
+            (color, x, y)
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -142,17 +165,20 @@ mod test {
 
     #[test]
     fn iteration() {
-        let mut buffer = PixelBuffer::new(5, 5);
-        for (x, y) in &buffer {
-            assert_eq!(buffer.get_pixel(x, y), Color::new(0.0, 0.0, 0.0));
+        let mut buffer = PixelBuffer::new(5, 8);
+
+        for (color, x, y) in buffer.iter_mut() {
+            *color = Color::new((x as f64)/5.0, (y as f64)/8.0, 1.0);
         }
 
-        for (x, y) in &buffer {
-            buffer.set_pixel(x, y, Color::new(0.5, 0.5, 0.5));
+        for (color, x, y) in buffer.iter() {
+            assert_eq!(color, Color::new((x as f64)/5.0, (y as f64)/8.0, 1.0));
         }
 
-        for (x, y) in &buffer {
-            assert_ne!(buffer.get_pixel(x, y), Color::new(0.0, 0.0, 0.0));
+        for ((_, x, y),(xa, ya)) in buffer.iter().zip(buffer.iter_locations()) {
+            assert_eq!(x, xa);
+            assert_eq!(y, ya);
         }
+        assert_eq!(buffer.iter().count(), buffer.iter_locations().count())
     }
 }

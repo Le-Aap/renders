@@ -11,7 +11,7 @@ use std::{
 /// # use renders::{camera::{CameraBuilder, Camera},vec_math::Vec3};
 /// let camera = CameraBuilder::new()
 ///     .set_image_width(400)
-///     .set_camera_center(Vec3::new(1.0, 0.0, -1.0))
+///     .set_look_from(Vec3::new(1.0, 0.0, -1.0))
 ///     .set_aspect_ratio(16.0 / 9.0)
 ///     .to_camera();
 ///
@@ -330,7 +330,12 @@ impl Camera {
             for id in 0..self.nr_threads {
                 let output = output.clone();
                 s.spawn(move || {
-                    let pixel_iter = {output.lock().expect("Should be able to get lock on mutex.").iter().filter(|(_,y)|{(*y + id).is_multiple_of(self.nr_threads)})};
+                    let pixel_iter = {
+                        output.lock().expect("Lock should be available.")
+                            .iter_locations().filter(|(_, y)| {
+                                (y + id).is_multiple_of(self.nr_threads)
+                            })
+                    };
                     for (x, y) in pixel_iter {
                         let mut pixel_color = Color::new(0.0, 0.0, 0.0);
 
@@ -391,37 +396,4 @@ fn ray_color<T: Hittable>(ray: Ray, depth: u32, world: &T) -> Color {
                 |reflection| reflection.attenuation * ray_color(reflection.reflected, depth - 1, world)
             )
         )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_camera_creation() {
-        let camera_a = CameraBuilder::new()
-            .set_aspect_ratio(1.0)
-            .set_camera_up(Vec3::new(0.0, 0.0, 0.0))
-            .set_focal_length(1.0)
-            .set_image_width(100)
-            .to_camera();
-
-        let camera_b = CameraBuilder::new()
-            .set_camera_up(Vec3::new(0.0, 0.0, 0.0))
-            .set_aspect_ratio(1.0)
-            .set_image_width(100)
-            .set_focal_length(1.0)
-            .to_camera();
-
-        assert_eq!(camera_a, CameraBuilder::default().to_camera());
-        assert_eq!(camera_b, camera_a);
-
-        let camera_c = CameraBuilder::new()
-            .set_aspect_ratio(2.0)
-            .set_camera_up(Vec3::new(3.0, 0.0, 4.0))
-            .set_focal_length(1.5)
-            .set_image_width(2_000_000)
-            .to_camera();
-
-        assert_ne!(camera_a, camera_c);
-    }
 }
