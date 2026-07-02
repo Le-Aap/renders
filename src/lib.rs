@@ -12,6 +12,7 @@ pub mod ray_math;
 pub mod camera;
 pub mod brdfs;
 pub mod pixelbuffer;
+pub mod triangle_model;
 
 /// Calculates the color at the end of a ray.
 /// If a bad color value is produced, black is returned instead.
@@ -40,7 +41,7 @@ pub struct HitRecord {
 }
 
 /// Trait to be implemented for all things that can be hit by a ray.
-pub trait Hittable {
+pub trait Hittable : {
     /// Intersects the ray with the surface and returns the hit if there was one.
     fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord>;
 }

@@ -1,20 +1,26 @@
-use renders::{brdfs::{self}, camera::CameraBuilder, colors::Color, vec_math::Vec3, Hittables, Sphere};
+use std::path::Path;
+
+use renders::{Hittables, Sphere, brdfs::{self}, camera::CameraBuilder, colors::Color, triangle_model::TriangleMesh, vec_math::Vec3};
 
 fn main() {
+    let plane = TriangleMesh::from_obj_file(&Path::new("suzanne.obj"));
+
     let world = std::sync::LazyLock::new(|| {
         let mut world = Hittables::new();
         
         let material_ground = brdfs::make_lambertian_diffuse_brdf(Color::new(0.8, 0.8, 0.0));
-        let material_center = brdfs::make_lambertian_diffuse_brdf(Color::new(0.1, 0.2, 0.5));
-        let material_left = brdfs::make_glass_brdf(1.50, Color::new(1.0, 1.0, 1.0));
-        let material_bubble = brdfs::make_glass_brdf(1.00/1.50, Color::new(1.0, 1.0, 1.0));
-        let material_right = brdfs::make_metal_brdf(Color::new(0.8, 0.6, 0.2));
+        // let material_center = brdfs::make_lambertian_diffuse_brdf(Color::new(0.1, 0.2, 0.5));
+        // let material_left = brdfs::make_glass_brdf(1.50, Color::new(1.0, 1.0, 1.0));
+        // let material_bubble = brdfs::make_glass_brdf(1.00/1.50, Color::new(1.0, 1.0, 1.0));
+        // let material_right = brdfs::make_metal_brdf(Color::new(0.8, 0.6, 0.2));
                                                                                               
-        world.add(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0, material_ground));
-        world.add(Sphere::new(Vec3::new(0.0, 0.0, -1.2), 0.5, material_center));
-        world.add(Sphere::new(Vec3::new(-1.0, 0.0, -1.0), 0.5, material_left));
-        world.add(Sphere::new(Vec3::new(-1.0, 0.0, -1.0), 0.4, material_bubble));
-        world.add(Sphere::new(Vec3::new(1.0, 0.0, -1.0), 0.5, material_right));
+        // world.add(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.0, material_ground));
+        // world.add(Sphere::new(Vec3::new(0.0, 0.0, -1.2), 0.5, material_center));
+        // world.add(Sphere::new(Vec3::new(-1.0, 0.0, -1.0), 0.5, material_left));
+        // world.add(Sphere::new(Vec3::new(-1.0, 0.0, -1.0), 0.4, material_bubble));
+        // world.add(Sphere::new(Vec3::new(1.0, 0.0, -1.0), 0.5, material_right));
+
+        world.add(plane);
 
         world
     });
