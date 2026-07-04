@@ -1,4 +1,4 @@
-use crate::vec_math::Vec3;
+use crate::vec_math::{Vec3, dot};
 
 /// Struct for representing mathmatical rays, consisting of an origin and a direction.
 /// # Example
@@ -54,6 +54,19 @@ impl Ray {
     pub const fn direction(self) -> Vec3 {
         self.direction
     }
+
+    /// Returns the value t for the distance at which this ray intersects the plane
+    /// defined by `normal_x * x + normal_y * y + normal_z * z + height = 0`. Returns
+    /// none if the ray and plane are parallel
+    #[must_use]
+    pub fn intersect_plane(self, normal: Vec3, height: f64) -> Option<f64> {
+        let ndotr = dot(normal, self.direction);
+        if ndotr.abs() < f64::EPSILON {
+            None
+        } else {
+            Some(-(dot(normal, self.origin) + height) / ndotr)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -71,4 +84,6 @@ mod tests {
         assert_eq!(origin, ray.origin());
         assert_eq!(direction, ray.direction());
     }
+
+    
 }

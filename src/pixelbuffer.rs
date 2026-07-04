@@ -8,6 +8,25 @@ pub struct PixelBuffer {
     height: usize,
 }
 
+impl<'a> IntoIterator for &'a mut PixelBuffer {
+    type Item = (&'a mut Color, usize, usize);
+
+    type IntoIter = PixelIteratorMut<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
+impl<'a> IntoIterator for &'a PixelBuffer {
+    type Item = (Color, usize, usize);
+    type IntoIter = PixelIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl PixelBuffer {
     /// Sets up a new color buffer with the bounds provided. All pixels are initialized to black.
     #[must_use]
@@ -51,7 +70,7 @@ impl PixelBuffer {
 
     /// Iterates over just the pixel locations, from left to right and top to bottom.
     #[must_use]
-    pub fn iter_locations(&self) -> PixelLocationIterator {
+    pub const fn iter_locations(&self) -> PixelLocationIterator {
         PixelLocationIterator::new(self.width, self.height)
     }
     
@@ -86,7 +105,7 @@ pub struct PixelLocationIterator {
 
 impl PixelLocationIterator {
     #[must_use]
-    fn new(width: usize, height: usize) -> Self {
+    const fn new(width: usize, height: usize) -> Self {
         Self { iter: 0..(width * height), width }
     }
 }
@@ -114,7 +133,7 @@ impl<'a> PixelIterator<'a> {
     }
 }
 
-impl<'a> Iterator for PixelIterator<'a> {
+impl Iterator for PixelIterator<'_> {
     type Item = (Color, usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -164,14 +183,15 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::cast_precision_loss)]
     fn iteration() {
         let mut buffer = PixelBuffer::new(5, 8);
 
-        for (color, x, y) in buffer.iter_mut() {
+        for (color, x, y) in &mut buffer {
             *color = Color::new((x as f64)/5.0, (y as f64)/8.0, 1.0);
         }
 
-        for (color, x, y) in buffer.iter() {
+        for (color, x, y) in &buffer {
             assert_eq!(color, Color::new((x as f64)/5.0, (y as f64)/8.0, 1.0));
         }
 
@@ -179,6 +199,6 @@ mod test {
             assert_eq!(x, xa);
             assert_eq!(y, ya);
         }
-        assert_eq!(buffer.iter().count(), buffer.iter_locations().count())
+        assert_eq!(buffer.iter().count(), buffer.iter_locations().count());
     }
 }
