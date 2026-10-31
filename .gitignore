@@ -1,4 +1,6 @@
 /target
-.envrc
-/.direnv
-*.ppm
+/result
+/result-lib
+.direnv
+
+/.pre-commit-config.yaml
