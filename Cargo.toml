@@ -4,6 +4,7 @@ edition = "2024"
 name = "rendersdf"
 description = "Renders SDFs!"
 version = "0.1.0"
+license = "MIT OR Apache-2.0"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -13,3 +14,8 @@ enum_glob_use = "deny"
 pedantic = { level = "deny",  priority = -1 }
 nursery = { level = "deny",  priority = -1 }
 unwrap_used = "deny"
+
+[dependencies]
+ggmath = "0.18"
+image = "0.25"
+rayon = "1.12"

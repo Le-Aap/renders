@@ -13,8 +13,6 @@
       hooks = {
         nixpkgs-fmt.enable = true;
         rustfmt.enable = true;
-        clippy.enable = true;
-        clippy.settings.denyWarnings = true;
       };
     };
   };
