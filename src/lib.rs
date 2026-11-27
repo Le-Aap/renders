@@ -1,166 +1,350 @@
-use colors::Color;
-use ray_math::Ray;
-use vec_math::{dot, Vec3};
-use std::vec::Vec;
-use interval::Interval;
-use brdfs::BRDF;
+use ggmath::{Element, PrimitiveFloat, Vec3};
 
-pub mod interval;
-pub mod vec_math;
-pub mod colors;
-pub mod ray_math;
-pub mod camera;
-pub mod brdfs;
-pub mod pixelbuffer;
+pub trait Sdf<T>
+where
+    T: Element,
+{
+    /// Evaluate the signed distance function at point p.
+    fn eval(&self, p: Vec3<T>) -> T;
 
-/// Calculates the color at the end of a ray.
-/// If a bad color value is produced, black is returned instead.
-#[must_use]
-pub fn ray_color<T: Hittable>(ray: Ray, world: &T) -> Color {
-    world.hit(ray, Interval::new(0.0, f64::INFINITY)).map_or_else(
-    || {
-        let a = 0.5 * (ray.direction().normalized().y() + 1.0);
-        ((1.0 - a) * Vec3::new(1.0, 1.0, 1.0) + a * Vec3::new(0.5, 0.7, 1.0)).into()
-    },
-    |hit| ((hit.normal + Vec3::new(1.0, 1.0, 1.0)) * 0.5).into())
-}
-
-/// Type returned by all hits.
-pub struct HitRecord {
-    /// Point where the ray hit the hittable.
-    pub point: Vec3,
-    /// Surface normal at the hit point.
-    pub normal: Vec3,
-    /// Distance* travelled by the ray from the camera to the surface.
-    pub t: f64,
-    /// True if the surface hit is a front-face.
-    pub front_face: bool,
-    /// BRDF at hit.
-    pub brdf: BRDF,
-}
-
-/// Trait to be implemented for all things that can be hit by a ray.
-pub trait Hittable {
-    /// Intersects the ray with the surface and returns the hit if there was one.
-    fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord>;
-}
-
-/// Represents a sphere with a surface. 
-pub struct Sphere {
-    center: Vec3,
-    radius: f64,
-    surface_shader: BRDF,
-}
-
-impl Sphere {
-    /// Creates a new sphere.
-    /// # Panics
-    /// panics if radius is set to be smaller than 0.
-    #[must_use]
-    pub fn new(center: Vec3, radius: f64, surface_shader: BRDF) -> Self {
-        assert!(radius >= 0.0);
-        Self {center, radius, surface_shader}
-    }
-}
-
-/// Calculates the normal and front facing value of a hit.
-/// # Panics
-/// Panics if `outward_normal` is not of unit length.
-#[must_use]
-pub fn calculate_face_normal(ray: Ray, outward_normal: Vec3) -> (bool, Vec3) {
-    assert!((outward_normal.square_length() - 1.0).abs() <= 0.0001);
-
-    let front_face = dot(ray.direction(), outward_normal) < 0.0;
-    let normal = if front_face {outward_normal} else {-1.0 * outward_normal};
-    (front_face, normal)
-}
-
-impl Hittable for Sphere {
-    #[allow(clippy::suspicious_operation_groupings)]
-    fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord> {
-        let oc = self.center - ray.origin();
-        let a = ray.direction().square_length();
-        let h = dot(ray.direction(), oc);
-        let c = self.radius.mul_add(-self.radius, oc.square_length());
-
-        let discriminant = h.mul_add(h, -(a*c));
-        if discriminant < 0.0 {
-            return None;
-        }
-
-        let discriminant = discriminant.sqrt();
-
-        let mut root = (h - discriminant) / a;
-        if !ray_t.surrounds(root) {
-            root = (h + discriminant) / a;
-            if !ray_t.surrounds(root) {
-                return None;
-            }
-        }
-
-        let hit_point = ray.at(root);
-        let (front_face, normal) = calculate_face_normal(ray, (hit_point - self.center) / self.radius);
-
-        Some(HitRecord {
-            t: root,
-            point: hit_point,
-            brdf: self.surface_shader.clone(),
-            normal, front_face
-        })
-    }
-}
-
-/// A hittable collection of hittable items.
-pub struct Hittables {
-    objects: Vec<Box<dyn Hittable + Send + Sync + 'static>>,
-}
-
-impl Hittables {
-    #[must_use]
-    pub fn new() -> Self { Self {objects: Vec::new()} }
-
-    /// Adds a hittable item into the collection
-    pub fn add<T>(&mut self, object: T)
-    where 
-        T: Hittable + Send + Sync + 'static,
+    /// Returns SDF equal to the union of `self` and `other`.
+    fn union<U>(self, other: U) -> Union<Self, U>
+    where
+        Self: Sized,
+        U: Sdf<T>,
     {
-        self.objects.push(Box::new(object));
+        Union { a: self, b: other }
     }
 
-    /// Clears the collection of hittable items
-    pub fn clear(&mut self) {
-        self.objects.clear();
+    /// Returns SDF equal to the intersection of `self` and `other`.
+    fn intersect<I>(self, other: I) -> Intersect<Self, I>
+    where
+        Self: Sized,
+        I: Sdf<T>,
+    {
+        Intersect { a: self, b: other }
     }
-}
 
-/// Defaults to an empty collection
-impl Default for Hittables {
-    /// returns an empty collection
-    fn default() -> Self {
-        Self::new()
+    /// Returns SDF equal to the compliment of `self`.
+    fn compliment(self) -> Compliment<Self>
+    where
+        Self: Sized,
+    {
+        Compliment { a: self }
     }
-}
 
-impl Hittable for Hittables {
-    /// Returns the nearest hit to any object in the collection
-    fn hit(&self, ray: Ray, ray_t: Interval) -> Option<HitRecord> {
-        let mut current = None;
-
-        for hittable in &self.objects {
-            if let Some(hit) = hittable.hit(ray, ray_t) {
-                current = match current {
-                    None => Some(hit),
-                    Some(current_hit) => {
-                        if (current_hit.t) > hit.t { 
-                            Some(hit)
-                        } else {
-                            Some(current_hit)
-                        }
-                    }
-                }
-            }
+    /// Returns SDF equal to subtracting `other` from `self`.
+    /// Equivalent to `self.intersect(other.compliment)`
+    fn subtract<O>(self, other: O) -> Intersect<Self, Compliment<O>>
+    where
+        Self: Sized,
+        O: Sdf<T>,
+    {
+        Intersect {
+            a: self,
+            b: other.compliment(),
         }
+    }
 
-        current
+    /// Returns SDF equal to `self` translated by `t`.
+    fn translate_by(self, t: Vec3<T>) -> Translated<Self, T>
+    where
+        Self: Sized,
+    {
+        Translated { s: self, t }
+    }
+
+    /// Returns SDF equal to `self` scaled uniformally by factor `t`.
+    fn scale_by(self, t: T) -> Scaled<Self, T>
+    where
+        Self: Sized,
+    {
+        Scaled { s: self, t }
+    }
+}
+
+/// SDF of the unit sphere.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct UnitSphere {}
+
+impl<T> Sdf<T> for UnitSphere
+where
+    T: PrimitiveFloat,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        Vec3::length(p) - T::ONE
+    }
+}
+
+/// SDF of a sphere in 3D space, radius must be positive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SphereSdf<T>
+where
+    T: Element,
+{
+    s: Translated<Scaled<UnitSphere, T>, T>,
+}
+
+impl<T> SphereSdf<T>
+where
+    T: PrimitiveFloat,
+{
+    /// Creates a new SDF of a sphere centered at `center` in 3D space with radius >= 0 `radius`.
+    /// # Panics
+    /// Panics when trying to create a sphere with negative radius.
+    pub fn new(center: Vec3<T>, radius: T) -> Self {
+        assert!(radius >= T::ZERO);
+        Self {
+            s: UnitSphere {}.scale_by(radius).translate_by(center),
+        }
+    }
+}
+
+impl<T> Sdf<T> for SphereSdf<T>
+where
+    T: PrimitiveFloat,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        self.s.eval(p)
+    }
+}
+
+/// Union combinator type. See Sdf trait.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Union<A, B> {
+    a: A,
+    b: B,
+}
+
+impl<A, B, T> Sdf<T> for Union<A, B>
+where
+    T: PrimitiveFloat,
+    A: Sdf<T>,
+    B: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        let da = self.a.eval(p);
+        let db = self.b.eval(p);
+
+        if da < db { da } else { db }
+    }
+}
+
+/// Intersection combinator type. See Sdf trait.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Intersect<A, B> {
+    a: A,
+    b: B,
+}
+
+impl<A, B, T> Sdf<T> for Intersect<A, B>
+where
+    T: PrimitiveFloat,
+    A: Sdf<T>,
+    B: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        let da = self.a.eval(p);
+        let db = self.b.eval(p);
+
+        if da > db { da } else { db }
+    }
+}
+
+/// Compliment combinator type. See Sdf trait.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Compliment<A> {
+    a: A,
+}
+
+impl<A, T> Sdf<T> for Compliment<A>
+where
+    T: PrimitiveFloat,
+    A: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        -self.a.eval(p)
+    }
+}
+
+/// Combinator type for translations of SDFs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Translated<S, T: Element> {
+    s: S,
+    t: Vec3<T>,
+}
+
+impl<S, T> Sdf<T> for Translated<S, T>
+where
+    T: PrimitiveFloat,
+    S: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        self.s.eval(p - self.t)
+    }
+}
+
+/// Combinator type for uniformly scaling SDFs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Scaled<S, T> {
+    s: S,
+    t: T,
+}
+
+impl<S, T> Sdf<T> for Scaled<S, T>
+where
+    T: PrimitiveFloat,
+    S: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        self.s.eval(p / self.t) * self.t
+    }
+}
+
+/// Sdf of a box centered at the origin aligned with the axes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CenteredBoxSdf<T>
+where
+    T: Element,
+{
+    b: Vec3<T>,
+}
+
+impl<T> CenteredBoxSdf<T>
+where
+    T: Element,
+{
+    const fn new(b: Vec3<T>) -> Self {
+        Self { b }
+    }
+}
+
+impl<T> Sdf<T> for CenteredBoxSdf<T>
+where
+    T: PrimitiveFloat,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        let q = p.abs() - self.b;
+        let maxelement = q.max_element();
+        Vec3::length(q.max(Vec3::ZERO))
+            + if maxelement < T::ZERO {
+                T::ZERO
+            } else {
+                maxelement
+            }
+    }
+}
+
+/// Sdf of a box aligned with the axes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoxSdf<T>
+where
+    T: Element,
+{
+    b: Translated<CenteredBoxSdf<T>, T>,
+}
+
+impl<T> BoxSdf<T>
+where
+    T: PrimitiveFloat,
+{
+    pub fn new(center: Vec3<T>, radius: Vec3<T>) -> Self {
+        Self {
+            b: CenteredBoxSdf::new(radius).translate_by(center),
+        }
+    }
+
+    #[allow(clippy::suspicious_operation_groupings)]
+    pub fn from_bounds(lower: Vec3<T>, upper: Vec3<T>) -> Self {
+        // Clipy thinks this code is bad too (:
+        Self::new(
+            (lower + upper) / (T::ONE + T::ONE),
+            (upper - lower) / (T::ONE + T::ONE),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::LazyLock;
+
+    use super::*;
+
+    static UNIT_SPHERE: LazyLock<SphereSdf<f32>> =
+        LazyLock::new(|| SphereSdf::new(Vec3::ZERO, 1.0_f32));
+
+    #[test]
+    fn sphere_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        assert!(f32::abs(sphere.eval(Vec3::ZERO) + 1.0) <= f32::EPSILON);
+        dbg!(&sphere);
+        assert_eq!(sphere, *UNIT_SPHERE);
+    }
+
+    #[test]
+    fn union_sdf() {
+        let center2 = Vec3::X;
+        let center3 = Vec3::Y;
+
+        let sphere = UNIT_SPHERE.clone();
+        let sphere2 = SphereSdf::new(center2, 1.0);
+        let sphere3 = SphereSdf::new(center3, 1.0);
+
+        let combined = sphere.union(sphere2).union(sphere3);
+        assert!(f32::abs(combined.eval(Vec3::ZERO) + 1.0) <= f32::EPSILON);
+        assert!(f32::abs(combined.eval(center2) + 1.0) <= f32::EPSILON);
+        assert!(f32::abs(combined.eval(center3) + 1.0) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn intersection_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        let sphere2 = SphereSdf::new(Vec3::X, 1.0);
+
+        let intersection = sphere.intersect(sphere2);
+        assert!(f32::abs(intersection.eval(Vec3::ZERO)) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn compliment_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+
+        let compliment = sphere.compliment();
+        assert!(f32::abs(compliment.eval(Vec3::ZERO) - 1.0) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn subtract_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        let sphere2 = SphereSdf::new(Vec3::X, 1.0);
+
+        let subtracted = sphere.subtract(sphere2);
+        assert!(f32::abs(subtracted.eval(Vec3::ZERO)) <= f32::EPSILON);
+        assert!(f32::abs(subtracted.eval(-Vec3::X)) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn translate_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        let translated = sphere.translate_by(Vec3::Z);
+        let sphere2 = SphereSdf::new(Vec3::Z, 1.0);
+        assert!(
+            f32::abs(translated.eval(Vec3::X * 2.0) - sphere2.eval(Vec3::X * 2.0)) <= f32::EPSILON
+        );
+    }
+
+    #[test]
+    fn scale_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        let scaled = sphere.scale_by(2.0);
+        let sphere2 = SphereSdf::new(Vec3::ZERO, 2.0);
+        assert!(f32::abs(scaled.eval(Vec3::X * 4.0) - sphere2.eval(Vec3::X * 4.0)) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn box_sdf() {
+        let boxsdf = BoxSdf::new(Vec3::Z * 2.0, Vec3::new(1.0, 1.0, 2.0));
+        let boxsdf2 = BoxSdf::from_bounds(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 4.0));
+        assert_eq!(boxsdf, boxsdf2);
     }
 }

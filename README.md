@@ -1,26 +1,41 @@
-# RendeRS
-![Render produced by RendeRS](https://github.com/Le-Aap/renders/blob/master/image.png)
-RendeRS is primarily a rust implementation of the raytracer described in the book [_Ray Tracing in One Weekend_](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
+<!--
+SPDX-FileCopyrightText: 2026 Isabelle de Boer <isabelledeboer1@proton.me>
 
-So far implemented from the book is chapter 1 - 10.
-In addition to this I have implemented multithreading.
+SPDX-License-Identifier: MIT OR Apache-2.0
+-->
 
-## To run with Nix
-To run RendeRS when using the Nix package manager on Linux/WSL:
-Clone RendeRS and open the project root in a shell. In the shell run `nix develop` to install all of the requirements needed to build RendeRS. 
-The versions installed are the same used for testing and so are guaranteed to work.
-After running `nix develop` run `cargo run -r` to compile and run RendeRS.
+# RenderSDF
+Renders started of as, and on the master branch for now still is a Rust 
+implementation of the book [_Ray Tracing in One Weekend_](https://raytracing.github.io/books/RayTracingInOneWeekend.html).
 
-## To run without Nix
-To run RendeRS when not using the Nix package manager, make sure you have a version of [the rust toolchain installed](https://rust-lang.org/tools/install/) installed.
+The goal of the project initially was to learn Rust, but now I want to leave
+the old and bad code behind! Mostly to be able to apply some of the new skills I
+have gained, learn to use some well-loved crates such as Rayon and learn how to
+actually build rust with nix tooling.
 
-Clone RendeRS and open the project root in a shell, then run `cargo run -r` to compile and run RendeRS.
+In addition to me wanting to gain newer technical skills, my interests and goals
+for the project have shifted from being a simple monte-carlo triangle renderer
+to implementing some newer techniques for pathtracing, and instead of rendering
+scenes made up from triangles I want to shift towards rendering signed distance
+fields using sphere tracing.
+
+The goals I have currently in my todo are quite a lot so it will likely take a
+while but eventually I want to use the (two) render methods built here for v2
+of the project and integrate it with the Bevy engine into a real-time
+application for SDF based 3D-modeling.
 
 ## Todo:
-My goal is to extend this implementation with:
-- The rest of the content of the book.
-- Support for rendering triangle meshes using a BVH acceleration structure.
-- Output to more image types.
-- A version of the universal Disney BRDF for compatibility with 3d modeling programs.
-- Importing scene descriptor files from 3d modeling programs.
-- A web ui for a more friendly interface.
+- [x] Set up nix for building, running and testing the project.
+- [ ] Build up a solid library of functions needed for sphere-tracing.
+- [ ] Build a biased renderer based on ReSTIR.
+- [ ] Build an unbiased spectral renderer based on BDPT.
+
+## License
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  https://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  https://opensource.org/licenses/MIT)
+
+at your option.

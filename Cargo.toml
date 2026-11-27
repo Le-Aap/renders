@@ -1,7 +1,10 @@
 [package]
-name = "renders"
-version = "0.1.0"
+authors = ["Isabelle de Boer <isabelledeboer1@proton.me>"]
 edition = "2024"
+name = "rendersdf"
+description = "Renders SDFs!"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -13,4 +16,6 @@ nursery = { level = "deny",  priority = -1 }
 unwrap_used = "deny"
 
 [dependencies]
-rand = "0.9.2"
+ggmath = "0.18"
+image = "0.25"
+rayon = "1.12"
