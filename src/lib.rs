@@ -45,19 +45,47 @@ where
             b: other.compliment(),
         }
     }
+
+    /// Returns SDF equal to `self` translated by `t`.
+    fn translate_by(self, t: Vec3<T>) -> Translated<Self, T>
+    where
+        Self: Sized,
+    {
+        Translated { s: self, t }
+    }
+
+    /// Returns SDF equal to `self` scaled uniformally by factor `t`.
+    fn scale_by(self, t: T) -> Scaled<Self, T>
+    where
+        Self: Sized,
+    {
+        Scaled { s: self, t }
+    }
+}
+
+/// SDF of the unit sphere.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct UnitSphere {}
+
+impl<T> Sdf<T> for UnitSphere
+where
+    T: PrimitiveFloat,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        Vec3::length(p) - T::ONE
+    }
 }
 
 /// SDF of a sphere in 3D space, radius must be positive.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Sphere<T>
+pub struct SphereSdf<T>
 where
     T: Element,
 {
-    center: Vec3<T>,
-    radius: T,
+    s: Translated<Scaled<UnitSphere, T>, T>,
 }
 
-impl<T> Sphere<T>
+impl<T> SphereSdf<T>
 where
     T: PrimitiveFloat,
 {
@@ -66,16 +94,18 @@ where
     /// Panics when trying to create a sphere with negative radius.
     pub fn new(center: Vec3<T>, radius: T) -> Self {
         assert!(radius >= T::ZERO);
-        Self { center, radius }
+        Self {
+            s: UnitSphere {}.scale_by(radius).translate_by(center),
+        }
     }
 }
 
-impl<T> Sdf<T> for Sphere<T>
+impl<T> Sdf<T> for SphereSdf<T>
 where
     T: PrimitiveFloat,
 {
     fn eval(&self, p: Vec3<T>) -> T {
-        self.center.distance(p) - self.radius
+        self.s.eval(p)
     }
 }
 
@@ -137,13 +167,111 @@ where
     }
 }
 
+/// Combinator type for translations of SDFs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Translated<S, T: Element> {
+    s: S,
+    t: Vec3<T>,
+}
+
+impl<S, T> Sdf<T> for Translated<S, T>
+where
+    T: PrimitiveFloat,
+    S: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        self.s.eval(p - self.t)
+    }
+}
+
+/// Combinator type for uniformly scaling SDFs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Scaled<S, T> {
+    s: S,
+    t: T,
+}
+
+impl<S, T> Sdf<T> for Scaled<S, T>
+where
+    T: PrimitiveFloat,
+    S: Sdf<T>,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        self.s.eval(p / self.t) * self.t
+    }
+}
+
+/// Sdf of a box centered at the origin aligned with the axes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CenteredBoxSdf<T>
+where
+    T: Element,
+{
+    b: Vec3<T>,
+}
+
+impl<T> CenteredBoxSdf<T>
+where
+    T: Element,
+{
+    const fn new(b: Vec3<T>) -> Self {
+        Self { b }
+    }
+}
+
+impl<T> Sdf<T> for CenteredBoxSdf<T>
+where
+    T: PrimitiveFloat,
+{
+    fn eval(&self, p: Vec3<T>) -> T {
+        let q = p.abs() - self.b;
+        let maxelement = q.max_element();
+        Vec3::length(q.max(Vec3::ZERO))
+            + if maxelement < T::ZERO {
+                T::ZERO
+            } else {
+                maxelement
+            }
+    }
+}
+
+/// Sdf of a box aligned with the axes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoxSdf<T>
+where
+    T: Element,
+{
+    b: Translated<CenteredBoxSdf<T>, T>,
+}
+
+impl<T> BoxSdf<T>
+where
+    T: PrimitiveFloat,
+{
+    pub fn new(center: Vec3<T>, radius: Vec3<T>) -> Self {
+        Self {
+            b: CenteredBoxSdf::new(radius).translate_by(center),
+        }
+    }
+
+    #[allow(clippy::suspicious_operation_groupings)]
+    pub fn from_bounds(lower: Vec3<T>, upper: Vec3<T>) -> Self {
+        // Clipy thinks this code is bad too (:
+        Self::new(
+            (lower + upper) / (T::ONE + T::ONE),
+            (upper - lower) / (T::ONE + T::ONE),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::LazyLock;
 
     use super::*;
 
-    static UNIT_SPHERE: LazyLock<Sphere<f32>> = LazyLock::new(|| Sphere::new(Vec3::ZERO, 1.0_f32));
+    static UNIT_SPHERE: LazyLock<SphereSdf<f32>> =
+        LazyLock::new(|| SphereSdf::new(Vec3::ZERO, 1.0_f32));
 
     #[test]
     fn sphere_sdf() {
@@ -159,8 +287,8 @@ mod tests {
         let center3 = Vec3::Y;
 
         let sphere = UNIT_SPHERE.clone();
-        let sphere2 = Sphere::new(center2, 1.0);
-        let sphere3 = Sphere::new(center3, 1.0);
+        let sphere2 = SphereSdf::new(center2, 1.0);
+        let sphere3 = SphereSdf::new(center3, 1.0);
 
         let combined = sphere.union(sphere2).union(sphere3);
         assert!(f32::abs(combined.eval(Vec3::ZERO) + 1.0) <= f32::EPSILON);
@@ -171,7 +299,7 @@ mod tests {
     #[test]
     fn intersection_sdf() {
         let sphere = UNIT_SPHERE.clone();
-        let sphere2 = Sphere::new(Vec3::X, 1.0);
+        let sphere2 = SphereSdf::new(Vec3::X, 1.0);
 
         let intersection = sphere.intersect(sphere2);
         assert!(f32::abs(intersection.eval(Vec3::ZERO)) <= f32::EPSILON);
@@ -188,10 +316,35 @@ mod tests {
     #[test]
     fn subtract_sdf() {
         let sphere = UNIT_SPHERE.clone();
-        let sphere2 = Sphere::new(Vec3::X, 1.0);
+        let sphere2 = SphereSdf::new(Vec3::X, 1.0);
 
         let subtracted = sphere.subtract(sphere2);
         assert!(f32::abs(subtracted.eval(Vec3::ZERO)) <= f32::EPSILON);
         assert!(f32::abs(subtracted.eval(-Vec3::X)) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn translate_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        let translated = sphere.translate_by(Vec3::Z);
+        let sphere2 = SphereSdf::new(Vec3::Z, 1.0);
+        assert!(
+            f32::abs(translated.eval(Vec3::X * 2.0) - sphere2.eval(Vec3::X * 2.0)) <= f32::EPSILON
+        );
+    }
+
+    #[test]
+    fn scale_sdf() {
+        let sphere = UNIT_SPHERE.clone();
+        let scaled = sphere.scale_by(2.0);
+        let sphere2 = SphereSdf::new(Vec3::ZERO, 2.0);
+        assert!(f32::abs(scaled.eval(Vec3::X * 4.0) - sphere2.eval(Vec3::X * 4.0)) <= f32::EPSILON);
+    }
+
+    #[test]
+    fn box_sdf() {
+        let boxsdf = BoxSdf::new(Vec3::Z * 2.0, Vec3::new(1.0, 1.0, 2.0));
+        let boxsdf2 = BoxSdf::from_bounds(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(1.0, 1.0, 4.0));
+        assert_eq!(boxsdf, boxsdf2);
     }
 }
